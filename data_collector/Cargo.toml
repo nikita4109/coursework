@@ -1,5 +1,5 @@
 [package]
-name = "pump"
+name = "events_collector"
 version = "0.1.0"
 edition = "2021"
 
@@ -15,6 +15,7 @@ rand = "0.8.5"
 reqwest = "0.11.23"
 serde = "1.0.195"
 serde_json = "1.0.111"
-tokio = "1.35.1"
 web3 = "0.19.0"
 chrono = "0.4"
+clap = { version = "4.5.0", features = ["derive"] }
+tokio = "1.36.0"
