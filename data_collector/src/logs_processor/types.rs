@@ -4,7 +4,42 @@ use web3::types::{Address, U256};
 #[derive(Debug, Serialize)]
 pub struct SyncTick {
     pub token_symbol: String,
-    pub event: SyncEvent,
+    pub block_number: u64,
+    pub address: Address,
+    pub reserve0: U256,
+    pub reserve1: U256,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SwapTick {
+    pub token_symbol: String,
+    pub block_number: u64,
+    pub address: Address,
+    pub sender: Address,
+    pub amount0_in: U256,
+    pub amount0_out: U256,
+    pub amount1_in: U256,
+    pub amount1_out: U256,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MintTick {
+    pub token_symbol: String,
+    pub block_number: u64,
+    pub address: Address,
+    pub sender: Address,
+    pub amount0: U256,
+    pub amount1: U256,
+}
+
+#[derive(Debug, Serialize)]
+pub struct BurnTick {
+    pub token_symbol: String,
+    pub block_number: u64,
+    pub address: Address,
+    pub sender: Address,
+    pub amount0: U256,
+    pub amount1: U256,
 }
 
 #[derive(Debug, Deserialize)]

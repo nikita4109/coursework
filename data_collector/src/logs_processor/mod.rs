@@ -112,8 +112,11 @@ impl LogsProcessor {
                 Event::Sync(event) => {
                     if let Some(token_symbol) = pool_address_to_symbol.get(&event.address) {
                         tickers.push(SyncTick {
-                            event: event.clone(),
                             token_symbol: token_symbol.clone(),
+                            address: event.address,
+                            block_number: event.block_number,
+                            reserve0: event.reserve0,
+                            reserve1: event.reserve1,
                         });
                     }
                 }
