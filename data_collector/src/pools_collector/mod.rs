@@ -50,7 +50,7 @@ impl PoolCollector {
 
         let mut handles = Vec::new();
 
-        let semaphore = Arc::new(tokio::sync::Semaphore::new(10));
+        let semaphore = Arc::new(tokio::sync::Semaphore::new(100));
         for i in 0..pools_count.as_u64() {
             let contract = contract.clone();
             let rpc = self.rpc.clone();
