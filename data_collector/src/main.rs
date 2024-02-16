@@ -53,9 +53,6 @@ struct PoolsCollectorArgs {
     rpc: String,
 
     #[arg(short, long)]
-    abi_path: String,
-
-    #[arg(short, long)]
     output_filepath: String,
 }
 

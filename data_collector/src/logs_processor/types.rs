@@ -1,11 +1,39 @@
-use std::ops::Add;
-
+use serde::{Deserialize, Serialize};
 use web3::types::{Address, U256};
 
-pub struct CEXData {
-    address: Address,
+#[derive(Debug, Serialize)]
+pub struct Tick {
+    pub token_symbol: String,
+    pub event: Event,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct CEXRecord {
+    id: u32,
+    name: String,
+    pub symbol: String,
+    slug: String,
+    cmcRank: u32,
+    circulatingSupply: f64,
+    totalSupply: f64,
+    lastUpdated: String,
+    dateAdded: String,
+    numMarketPairs: u32,
+    price: f64,
+    volume24h: f64,
+    marketCap: f64,
+    platform_id: String,
+    pub platform_slug: String,
+    platform_symbol: String,
+    pub token_adress: String,
+}
+
+pub struct CEXData {
+    pub address: Address,
+    pub token_symbol: String,
+}
+
+#[derive(Debug, Serialize, Clone)]
 pub enum Event {
     Sync(SyncEvent),
     Swap(SwapEvent),
@@ -23,11 +51,12 @@ pub fn parse_event(args: Vec<String>) -> Event {
     }
 }
 
+#[derive(Debug, Serialize, Clone)]
 pub struct SyncEvent {
-    block_number: u64,
-    address: Address,
-    reserve0: U256,
-    reserve1: U256,
+    pub block_number: u64,
+    pub address: Address,
+    pub reserve0: U256,
+    pub reserve1: U256,
 }
 
 impl SyncEvent {
@@ -41,9 +70,10 @@ impl SyncEvent {
     }
 }
 
+#[derive(Debug, Serialize, Clone)]
 pub struct SwapEvent {
     block_number: u64,
-    address: Address,
+    pub address: Address,
     sender: Address,
     amount0_in: U256,
     amount0_out: U256,
@@ -65,9 +95,10 @@ impl SwapEvent {
     }
 }
 
+#[derive(Debug, Serialize, Clone)]
 pub struct MintEvent {
     block_number: u64,
-    address: Address,
+    pub address: Address,
     sender: Address,
     amount0: U256,
     amount1: U256,
@@ -85,9 +116,10 @@ impl MintEvent {
     }
 }
 
+#[derive(Debug, Serialize, Clone)]
 pub struct BurnEvent {
     block_number: u64,
-    address: Address,
+    pub address: Address,
     sender: Address,
     amount0: U256,
     amount1: U256,

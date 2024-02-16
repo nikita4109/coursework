@@ -1,13 +1,16 @@
 mod types;
 
-use self::types::CEXData;
+use self::types::{CEXData, Tick};
+use crate::logs_processor::types::CEXRecord;
 use crate::pools_collector::PoolInfo;
 use crate::LogsProcessorArgs;
+use csv::Reader;
+use csv::Writer;
 use std::collections::HashMap;
 use std::io::{BufReader, Read};
 use std::path::Path;
 use std::{fs::File, io::BufRead};
-use types::{parse_event, BurnEvent, Event, MintEvent, SwapEvent, SyncEvent};
+use types::{parse_event, Event};
 use web3::types::Address;
 
 pub struct LogsProcessor {
@@ -49,7 +52,22 @@ impl LogsProcessor {
     }
 
     fn read_cex_data_csv(path: &str) -> Vec<CEXData> {
-        Vec::new()
+        let mut data = Vec::new();
+
+        let mut rdr = Reader::from_path(path).expect("can't read CEX csv");
+        for result in rdr.deserialize() {
+            let record: CEXRecord = result.unwrap();
+            if record.platform_slug != "ethereum" {
+                continue;
+            }
+
+            data.push(CEXData {
+                address: record.token_adress.parse().unwrap(),
+                token_symbol: record.symbol,
+            });
+        }
+
+        return data;
     }
 
     fn read_pools(path: &str) -> HashMap<Address, PoolInfo> {
@@ -68,7 +86,47 @@ impl LogsProcessor {
         return pools;
     }
 
-    
-    
-    pub fn write_csv(&self, path: &str) {}
+    pub fn write_csv(&self, path: &str) {
+        let mut token_address_to_symbol = HashMap::new();
+        for cex_record in &self.cex_data {
+            token_address_to_symbol.insert(cex_record.address, cex_record.token_symbol.clone());
+        }
+
+        let mut pool_address_to_symbol = HashMap::new();
+        for (address, pool_info) in &self.pools {
+            if let Some(token_symbol) = token_address_to_symbol.get(&pool_info.token0) {
+                pool_address_to_symbol.insert(address, token_symbol.clone());
+            }
+
+            if let Some(token_symbol) = token_address_to_symbol.get(&pool_info.token1) {
+                pool_address_to_symbol.insert(address, token_symbol.clone());
+            }
+        }
+
+        let mut tickers = Vec::new();
+        for event in &self.events {
+            let token_symbol = match event {
+                Event::Sync(event) => pool_address_to_symbol.get(&event.address),
+                Event::Swap(event) => pool_address_to_symbol.get(&event.address),
+                Event::Burn(event) => pool_address_to_symbol.get(&event.address),
+                Event::Mint(event) => pool_address_to_symbol.get(&event.address),
+            };
+
+            if let Some(token_symbol) = token_symbol {
+                tickers.push(Tick {
+                    event: event.clone(),
+                    token_symbol: token_symbol.clone(),
+                });
+            }
+        }
+
+        let file = File::create(path).unwrap();
+        let mut wtr = Writer::from_writer(file);
+
+        for record in tickers {
+            wtr.serialize(record).unwrap();
+        }
+
+        wtr.flush().unwrap();
+    }
 }
