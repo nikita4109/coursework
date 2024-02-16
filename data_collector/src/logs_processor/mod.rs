@@ -7,6 +7,7 @@ use crate::pools_collector::PoolInfo;
 use crate::LogsProcessorArgs;
 use csv::Reader;
 use csv::Writer;
+use serde::Serialize;
 use std::collections::HashMap;
 use std::io::{BufReader, Read};
 use std::path::Path;
@@ -167,10 +168,22 @@ impl LogsProcessor {
             };
         }
 
-        let file = File::create(dir).unwrap();
+        Self::write(&format!("{}/reserves.csv", dir), reserves);
+        Self::write(&format!("{}/swaps.csv", dir), swaps);
+        Self::write(
+            &format!("{}/liquidity_providing.csv", dir),
+            liquidity_providing,
+        );
+    }
+
+    fn write<T>(path: &str, records: Vec<T>)
+    where
+        T: Serialize,
+    {
+        let file = File::create(path).unwrap();
         let mut wtr = Writer::from_writer(file);
 
-        for record in reserves {
+        for record in records {
             wtr.serialize(record).unwrap();
         }
 
