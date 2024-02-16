@@ -38,7 +38,7 @@ pub struct SwapTick {
 }
 
 #[derive(Debug, Serialize)]
-pub struct MintTick {
+pub struct LiquidityTick {
     pub token_symbol: String,
     pub block_number: u64,
     pub address: Address,
@@ -46,16 +46,6 @@ pub struct MintTick {
     #[serde(serialize_with = "serialize_u256_as_decimal")]
     pub amount0: U256,
     #[serde(serialize_with = "serialize_u256_as_decimal")]
-    pub amount1: U256,
-}
-
-#[derive(Debug, Serialize)]
-pub struct BurnTick {
-    pub token_symbol: String,
-    pub block_number: u64,
-    pub address: Address,
-    pub sender: Address,
-    pub amount0: U256,
     pub amount1: U256,
 }
 
@@ -125,13 +115,13 @@ impl SyncEvent {
 
 #[derive(Debug, Serialize, Clone)]
 pub struct SwapEvent {
-    block_number: u64,
+    pub block_number: u64,
     pub address: Address,
-    sender: Address,
-    amount0_in: U256,
-    amount0_out: U256,
-    amount1_in: U256,
-    amount1_out: U256,
+    pub sender: Address,
+    pub amount0_in: U256,
+    pub amount0_out: U256,
+    pub amount1_in: U256,
+    pub amount1_out: U256,
 }
 
 impl SwapEvent {
@@ -150,11 +140,11 @@ impl SwapEvent {
 
 #[derive(Debug, Serialize, Clone)]
 pub struct MintEvent {
-    block_number: u64,
+    pub block_number: u64,
     pub address: Address,
-    sender: Address,
-    amount0: U256,
-    amount1: U256,
+    pub sender: Address,
+    pub amount0: U256,
+    pub amount1: U256,
 }
 
 impl MintEvent {
@@ -171,11 +161,11 @@ impl MintEvent {
 
 #[derive(Debug, Serialize, Clone)]
 pub struct BurnEvent {
-    block_number: u64,
+    pub block_number: u64,
     pub address: Address,
-    sender: Address,
-    amount0: U256,
-    amount1: U256,
+    pub sender: Address,
+    pub amount0: U256,
+    pub amount1: U256,
 }
 
 impl BurnEvent {

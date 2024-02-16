@@ -44,7 +44,7 @@ struct LogsProcessorArgs {
     pools_path: String,
 
     #[arg(short, long)]
-    output_filepath: String,
+    output_dir: String,
 }
 
 #[derive(Parser)]
@@ -73,9 +73,9 @@ async fn main() {
         }
 
         Commands::LogsProcessor(args) => {
-            let output_filepath = args.output_filepath.clone();
+            let output_dir = args.output_dir.clone();
             let processor = logs_processor::LogsProcessor::new(args);
-            processor.write_csv(&output_filepath);
+            processor.write_csv(&output_dir);
         }
 
         Commands::PoolsCollector(args) => {

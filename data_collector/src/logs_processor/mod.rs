@@ -1,6 +1,7 @@
 mod types;
 
 use self::types::{CEXData, SyncTick};
+use self::types::{LiquidityTick, SwapTick};
 use crate::logs_processor::types::CEXRecord;
 use crate::pools_collector::PoolInfo;
 use crate::LogsProcessorArgs;
@@ -89,7 +90,7 @@ impl LogsProcessor {
         return pools;
     }
 
-    pub fn write_csv(&self, path: &str) {
+    pub fn write_csv(&self, dir: &str) {
         let mut token_address_to_symbol = HashMap::new();
         for cex_record in &self.cex_data {
             token_address_to_symbol.insert(cex_record.address, cex_record.token_symbol.clone());
@@ -106,31 +107,70 @@ impl LogsProcessor {
             }
         }
 
-        let mut tickers = Vec::new();
+        let mut reserves = Vec::new();
+        let mut swaps = Vec::new();
+        let mut liquidity_providing = Vec::new();
         for event in &self.events {
             match event {
                 Event::Sync(event) => {
                     if let Some(token_symbol) = pool_address_to_symbol.get(&event.address) {
-                        tickers.push(SyncTick {
+                        reserves.push(SyncTick {
                             token_symbol: token_symbol.clone(),
-                            address: event.address,
                             block_number: event.block_number,
+                            address: event.address,
                             reserve0: event.reserve0,
                             reserve1: event.reserve1,
                         });
                     }
                 }
-                _ => continue,
-                // Event::Swap(event) => pool_address_to_symbol.get(&event.address),
-                // Event::Burn(event) => pool_address_to_symbol.get(&event.address),
-                // Event::Mint(event) => pool_address_to_symbol.get(&event.address),
+
+                Event::Swap(event) => {
+                    if let Some(token_symbol) = pool_address_to_symbol.get(&event.address) {
+                        swaps.push(SwapTick {
+                            token_symbol: token_symbol.clone(),
+                            block_number: event.block_number,
+                            address: event.address,
+                            sender: event.sender,
+                            amount0_in: event.amount0_in,
+                            amount0_out: event.amount0_out,
+                            amount1_in: event.amount1_in,
+                            amount1_out: event.amount1_out,
+                        });
+                    }
+                }
+
+                Event::Mint(event) => {
+                    if let Some(token_symbol) = pool_address_to_symbol.get(&event.address) {
+                        liquidity_providing.push(LiquidityTick {
+                            token_symbol: token_symbol.clone(),
+                            block_number: event.block_number,
+                            address: event.address,
+                            sender: event.sender,
+                            amount0: event.amount0,
+                            amount1: event.amount1,
+                        });
+                    }
+                }
+
+                Event::Burn(event) => {
+                    if let Some(token_symbol) = pool_address_to_symbol.get(&event.address) {
+                        liquidity_providing.push(LiquidityTick {
+                            token_symbol: token_symbol.clone(),
+                            block_number: event.block_number,
+                            address: event.address,
+                            sender: event.sender,
+                            amount0: event.amount0,
+                            amount1: event.amount1,
+                        });
+                    }
+                }
             };
         }
 
-        let file = File::create(path).unwrap();
+        let file = File::create(dir).unwrap();
         let mut wtr = Writer::from_writer(file);
 
-        for record in tickers {
+        for record in reserves {
             wtr.serialize(record).unwrap();
         }
 
