@@ -36,7 +36,7 @@ impl PoolCollector {
         let http = Http::new(&self.rpc).expect("Can't connect to RPC");
         let web3 = Web3::new(http);
 
-        let address: Address = "0x3a0Fa7884dD93f3cd234bBE2A0958Ef04b05E13b"
+        let address: Address = "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f"
             .parse()
             .expect("Invalid address format");
         let abi = include_bytes!("../../abi/factory.abi");
