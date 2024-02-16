@@ -62,10 +62,12 @@ impl LogsProcessor {
                 continue;
             }
 
-            data.push(CEXData {
-                address: record.token_adress.parse().unwrap(),
-                token_symbol: record.symbol,
-            });
+            if let Ok(token_address) = record.token_adress.parse() {
+                data.push(CEXData {
+                    address: token_address,
+                    token_symbol: record.symbol,
+                });
+            }
         }
 
         return data;
