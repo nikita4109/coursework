@@ -2,9 +2,9 @@ use serde::{Deserialize, Serialize};
 use web3::types::{Address, U256};
 
 #[derive(Debug, Serialize)]
-pub struct Tick {
+pub struct SyncTick {
     pub token_symbol: String,
-    pub event: Event,
+    pub event: SyncEvent,
 }
 
 #[derive(Debug, Deserialize)]

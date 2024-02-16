@@ -1,6 +1,6 @@
 mod types;
 
-use self::types::{CEXData, Tick};
+use self::types::{CEXData, SyncTick};
 use crate::logs_processor::types::CEXRecord;
 use crate::pools_collector::PoolInfo;
 use crate::LogsProcessorArgs;
@@ -108,20 +108,20 @@ impl LogsProcessor {
 
         let mut tickers = Vec::new();
         for event in &self.events {
-            let token_symbol = match event {
-                Event::Sync(event) => pool_address_to_symbol.get(&event.address),
+            match event {
+                Event::Sync(event) => {
+                    if let Some(token_symbol) = pool_address_to_symbol.get(&event.address) {
+                        tickers.push(SyncTick {
+                            event: event.clone(),
+                            token_symbol: token_symbol.clone(),
+                        });
+                    }
+                }
                 _ => continue,
                 // Event::Swap(event) => pool_address_to_symbol.get(&event.address),
                 // Event::Burn(event) => pool_address_to_symbol.get(&event.address),
                 // Event::Mint(event) => pool_address_to_symbol.get(&event.address),
             };
-
-            if let Some(token_symbol) = token_symbol {
-                tickers.push(Tick {
-                    event: event.clone(),
-                    token_symbol: token_symbol.clone(),
-                });
-            }
         }
 
         let file = File::create(path).unwrap();
