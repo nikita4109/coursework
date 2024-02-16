@@ -1,12 +1,23 @@
+use serde::Serializer;
 use serde::{Deserialize, Serialize};
 use web3::types::{Address, U256};
+
+fn serialize_u256_as_decimal<S>(value: &U256, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let decimal_str = value.to_string(); // Converts U256 to decimal/base 10 string.
+    serializer.serialize_str(&decimal_str)
+}
 
 #[derive(Debug, Serialize)]
 pub struct SyncTick {
     pub token_symbol: String,
     pub block_number: u64,
     pub address: Address,
+    #[serde(serialize_with = "serialize_u256_as_decimal")]
     pub reserve0: U256,
+    #[serde(serialize_with = "serialize_u256_as_decimal")]
     pub reserve1: U256,
 }
 
@@ -16,9 +27,13 @@ pub struct SwapTick {
     pub block_number: u64,
     pub address: Address,
     pub sender: Address,
+    #[serde(serialize_with = "serialize_u256_as_decimal")]
     pub amount0_in: U256,
+    #[serde(serialize_with = "serialize_u256_as_decimal")]
     pub amount0_out: U256,
+    #[serde(serialize_with = "serialize_u256_as_decimal")]
     pub amount1_in: U256,
+    #[serde(serialize_with = "serialize_u256_as_decimal")]
     pub amount1_out: U256,
 }
 
@@ -28,7 +43,9 @@ pub struct MintTick {
     pub block_number: u64,
     pub address: Address,
     pub sender: Address,
+    #[serde(serialize_with = "serialize_u256_as_decimal")]
     pub amount0: U256,
+    #[serde(serialize_with = "serialize_u256_as_decimal")]
     pub amount1: U256,
 }
 
