@@ -39,8 +39,9 @@ impl LogsProcessor {
             match line {
                 Ok(content) => {
                     let args = content.split(',').map(|s| s.to_string()).collect();
-                    let event = parse_event(args);
-                    events.push(event)
+                    if let Some(event) = parse_event(args) {
+                        events.push(event);
+                    }
                 }
                 Err(e) => {
                     panic!("Error reading line: {}", e);

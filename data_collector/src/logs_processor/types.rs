@@ -41,12 +41,13 @@ pub enum Event {
     Burn(BurnEvent),
 }
 
-pub fn parse_event(args: Vec<String>) -> Event {
+pub fn parse_event(args: Vec<String>) -> Option<Event> {
     match args[0].as_str() {
-        "1" => Event::Sync(SyncEvent::new(args)),
-        "2" => Event::Swap(SwapEvent::new(args)),
-        "3" => Event::Mint(MintEvent::new(args)),
-        "4" => Event::Burn(BurnEvent::new(args)),
+        "0" => None,
+        "1" => Some(Event::Sync(SyncEvent::new(args))),
+        "2" => Some(Event::Swap(SwapEvent::new(args))),
+        "3" => Some(Event::Mint(MintEvent::new(args))),
+        "4" => Some(Event::Burn(BurnEvent::new(args))),
         _ => panic!("Invalid args"),
     }
 }
