@@ -110,9 +110,10 @@ impl LogsProcessor {
         for event in &self.events {
             let token_symbol = match event {
                 Event::Sync(event) => pool_address_to_symbol.get(&event.address),
-                Event::Swap(event) => pool_address_to_symbol.get(&event.address),
-                Event::Burn(event) => pool_address_to_symbol.get(&event.address),
-                Event::Mint(event) => pool_address_to_symbol.get(&event.address),
+                _ => continue,
+                // Event::Swap(event) => pool_address_to_symbol.get(&event.address),
+                // Event::Burn(event) => pool_address_to_symbol.get(&event.address),
+                // Event::Mint(event) => pool_address_to_symbol.get(&event.address),
             };
 
             if let Some(token_symbol) = token_symbol {
