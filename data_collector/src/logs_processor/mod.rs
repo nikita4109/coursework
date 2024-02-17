@@ -248,5 +248,5 @@ impl LogsProcessor {
 
 fn normalize(amount: U256, decimals: u64) -> f64 {
     let amount: f64 = amount.to_string().parse().unwrap();
-    amount / decimals as f64
+    amount / 10.0_f64.powf(decimals as f64)
 }
