@@ -63,13 +63,6 @@ struct PoolsCollectorArgs {
 
 #[tokio::main]
 async fn main() {
-    let decimals: u64 = 18;
-    let amount = U256::from(192083129348092148_u128);
-    println!("{}", amount.as_u128());
-    println!("{:?}", normalize(amount, decimals));
-
-    return;
-
     let cli = Cli::parse();
 
     match cli.command {
