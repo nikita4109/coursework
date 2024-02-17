@@ -102,6 +102,10 @@ impl LogsProcessor {
     pub async fn write_csv(&self, dir: &str) {
         let mut token_address_to_token = HashMap::new();
         for cex_record in &self.cex_data {
+            if token_address_to_token.contains_key(&cex_record.address) {
+                continue;
+            }
+
             if let Some(decimals) = self.get_decimals(cex_record.address).await {
                 token_address_to_token.insert(
                     cex_record.address,
@@ -113,6 +117,8 @@ impl LogsProcessor {
                 );
             }
         }
+
+        println!("[CEX csv handled]");
 
         let mut pool_address_to_tokens = HashMap::new();
         for (address, pool_info) in &self.pools {
@@ -192,6 +198,8 @@ impl LogsProcessor {
                 }
             };
         }
+
+        println!("[Events handled]");
 
         Self::write(&format!("{}/reserves.csv", dir), reserves);
         Self::write(&format!("{}/swaps.csv", dir), swaps);
