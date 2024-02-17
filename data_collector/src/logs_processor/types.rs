@@ -12,6 +12,8 @@ pub struct Token {
 pub struct SyncTick {
     pub token0_symbol: String,
     pub token1_symbol: String,
+    pub token0_address: String,
+    pub token1_address: String,
     pub block_number: u64,
     pub address: Address,
     pub reserve0: f64,
@@ -22,6 +24,8 @@ pub struct SyncTick {
 pub struct SwapTick {
     pub token0_symbol: String,
     pub token1_symbol: String,
+    pub token0_address: String,
+    pub token1_address: String,
     pub block_number: u64,
     pub address: Address,
     pub sender: Address,
@@ -35,6 +39,8 @@ pub struct SwapTick {
 pub struct LiquidityTick {
     pub token0_symbol: String,
     pub token1_symbol: String,
+    pub token0_address: String,
+    pub token1_address: String,
     pub block_number: u64,
     pub address: Address,
     pub sender: Address,

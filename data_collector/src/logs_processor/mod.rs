@@ -145,6 +145,8 @@ impl LogsProcessor {
                         reserves.push(SyncTick {
                             token0_symbol: token0.symbol.clone(),
                             token1_symbol: token1.symbol.clone(),
+                            token0_address: token0.address.to_string(),
+                            token1_address: token1.address.to_string(),
                             block_number: event.block_number,
                             address: event.address,
                             reserve0: normalize(event.reserve0, token0.decimals),
@@ -158,6 +160,8 @@ impl LogsProcessor {
                         swaps.push(SwapTick {
                             token0_symbol: token0.symbol.clone(),
                             token1_symbol: token1.symbol.clone(),
+                            token0_address: token0.address.to_string(),
+                            token1_address: token1.address.to_string(),
                             block_number: event.block_number,
                             address: event.address,
                             sender: event.sender,
@@ -174,6 +178,8 @@ impl LogsProcessor {
                         liquidity_providing.push(LiquidityTick {
                             token0_symbol: token0.symbol.clone(),
                             token1_symbol: token1.symbol.clone(),
+                            token0_address: token0.address.to_string(),
+                            token1_address: token1.address.to_string(),
                             block_number: event.block_number,
                             address: event.address,
                             sender: event.sender,
@@ -188,6 +194,8 @@ impl LogsProcessor {
                         liquidity_providing.push(LiquidityTick {
                             token0_symbol: token0.symbol.clone(),
                             token1_symbol: token1.symbol.clone(),
+                            token0_address: token0.address.to_string(),
+                            token1_address: token1.address.to_string(),
                             block_number: event.block_number,
                             address: event.address,
                             sender: event.sender,
