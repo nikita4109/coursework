@@ -7,6 +7,7 @@ use crate::pools_collector::PoolInfo;
 use crate::LogsProcessorArgs;
 use csv::Reader;
 use csv::Writer;
+use ethabi::token;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::io::{BufReader, Read};
@@ -101,14 +102,16 @@ impl LogsProcessor {
     pub async fn write_csv(&self, dir: &str) {
         let mut token_address_to_token = HashMap::new();
         for cex_record in &self.cex_data {
-            token_address_to_token.insert(
-                cex_record.address,
-                Token {
-                    symbol: cex_record.token_symbol.clone(),
-                    address: cex_record.address,
-                    decimals: self.get_decimals(cex_record.address).await,
-                },
-            );
+            if let Some(decimals) = self.get_decimals(cex_record.address).await {
+                token_address_to_token.insert(
+                    cex_record.address,
+                    Token {
+                        symbol: cex_record.token_symbol.clone(),
+                        address: cex_record.address,
+                        decimals: decimals,
+                    },
+                );
+            }
         }
 
         let mut pool_address_to_tokens = HashMap::new();
@@ -212,7 +215,7 @@ impl LogsProcessor {
         wtr.flush().unwrap();
     }
 
-    async fn get_decimals(&self, token_address: Address) -> u64 {
+    async fn get_decimals(&self, token_address: Address) -> Option<u64> {
         let http = Http::new(&self.rpc).expect("Can't connect to RPC");
         let web3 = Web3::new(http);
 
@@ -220,12 +223,18 @@ impl LogsProcessor {
         let contract = Contract::from_json(web3.eth(), token_address, abi)
             .expect("Failed to create contract from ABI");
 
-        let decimals: U256 = contract
+        let decimals: U256 = match contract
             .query("decimals", (), None, Options::default(), None)
             .await
-            .expect("Invalid query for all pairs length");
+        {
+            Ok(r) => r,
+            Err(e) => {
+                println!("can't get decimals for {:?}", token_address);
+                return None;
+            }
+        };
 
-        return decimals.as_u64();
+        return Some(decimals.as_u64());
     }
 }
 
