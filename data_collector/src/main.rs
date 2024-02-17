@@ -2,9 +2,7 @@ use clap::{Parser, Subcommand};
 
 mod logs_collector;
 mod logs_processor;
-use crate::logs_processor::normalize;
 mod pools_collector;
-use web3::types::U256;
 
 #[derive(Parser)]
 struct Cli {
