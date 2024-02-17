@@ -216,7 +216,7 @@ impl LogsProcessor {
         let http = Http::new(&self.rpc).expect("Can't connect to RPC");
         let web3 = Web3::new(http);
 
-        let abi = include_bytes!("../../abi/factory.abi");
+        let abi = include_bytes!("../../abi/erc20.abi");
         let contract = Contract::from_json(web3.eth(), token_address, abi)
             .expect("Failed to create contract from ABI");
 
