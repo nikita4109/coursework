@@ -1,6 +1,6 @@
 mod types;
 
-use self::types::{CEXData, SyncTick};
+use self::types::{CEXData, SyncTick, Token};
 use self::types::{LiquidityTick, SwapTick};
 use crate::logs_processor::types::CEXRecord;
 use crate::pools_collector::PoolInfo;
@@ -13,9 +13,15 @@ use std::io::{BufReader, Read};
 use std::path::Path;
 use std::{fs::File, io::BufRead};
 use types::{parse_event, Event};
+use web3::contract::Contract;
+use web3::contract::Options;
+use web3::transports::Http;
 use web3::types::Address;
+use web3::types::U256;
+use web3::Web3;
 
 pub struct LogsProcessor {
+    rpc: String,
     events: Vec<Event>,
     cex_data: Vec<CEXData>,
     pools: HashMap<Address, PoolInfo>,
@@ -24,6 +30,7 @@ pub struct LogsProcessor {
 impl LogsProcessor {
     pub fn new(args: LogsProcessorArgs) -> Self {
         LogsProcessor {
+            rpc: args.rpc,
             events: LogsProcessor::read_logs_csv(&args.logs_path),
             cex_data: LogsProcessor::read_cex_data_csv(&args.cex_data_path),
             pools: LogsProcessor::read_pools(&args.pools_path),
@@ -91,21 +98,32 @@ impl LogsProcessor {
         return pools;
     }
 
-    pub fn write_csv(&self, dir: &str) {
-        let mut token_address_to_symbol = HashMap::new();
+    pub async fn write_csv(&self, dir: &str) {
+        let mut token_address_to_token = HashMap::new();
         for cex_record in &self.cex_data {
-            token_address_to_symbol.insert(cex_record.address, cex_record.token_symbol.clone());
+            token_address_to_token.insert(
+                cex_record.address,
+                Token {
+                    symbol: cex_record.token_symbol.clone(),
+                    address: cex_record.address,
+                    decimals: self.get_decimals(cex_record.address).await,
+                },
+            );
         }
 
-        let mut pool_address_to_symbol = HashMap::new();
+        let mut pool_address_to_tokens = HashMap::new();
         for (address, pool_info) in &self.pools {
-            if let Some(token_symbol) = token_address_to_symbol.get(&pool_info.token0) {
-                pool_address_to_symbol.insert(address, token_symbol.clone());
-            }
+            let token0 = match token_address_to_token.get(&pool_info.token0) {
+                Some(token) => token,
+                None => continue,
+            };
 
-            if let Some(token_symbol) = token_address_to_symbol.get(&pool_info.token1) {
-                pool_address_to_symbol.insert(address, token_symbol.clone());
-            }
+            let token1 = match token_address_to_token.get(&pool_info.token1) {
+                Some(token) => token,
+                None => continue,
+            };
+
+            pool_address_to_tokens.insert(address, (token0, token1));
         }
 
         let mut reserves = Vec::new();
@@ -114,54 +132,58 @@ impl LogsProcessor {
         for event in &self.events {
             match event {
                 Event::Sync(event) => {
-                    if let Some(token_symbol) = pool_address_to_symbol.get(&event.address) {
+                    if let Some((token0, token1)) = pool_address_to_tokens.get(&event.address) {
                         reserves.push(SyncTick {
-                            token_symbol: token_symbol.clone(),
+                            token0_symbol: token0.symbol.clone(),
+                            token1_symbol: token1.symbol.clone(),
                             block_number: event.block_number,
                             address: event.address,
-                            reserve0: event.reserve0,
-                            reserve1: event.reserve1,
+                            reserve0: normalize(event.reserve0, token0.decimals),
+                            reserve1: normalize(event.reserve1, token1.decimals),
                         });
                     }
                 }
 
                 Event::Swap(event) => {
-                    if let Some(token_symbol) = pool_address_to_symbol.get(&event.address) {
+                    if let Some((token0, token1)) = pool_address_to_tokens.get(&event.address) {
                         swaps.push(SwapTick {
-                            token_symbol: token_symbol.clone(),
+                            token0_symbol: token0.symbol.clone(),
+                            token1_symbol: token1.symbol.clone(),
                             block_number: event.block_number,
                             address: event.address,
                             sender: event.sender,
-                            amount0_in: event.amount0_in,
-                            amount0_out: event.amount0_out,
-                            amount1_in: event.amount1_in,
-                            amount1_out: event.amount1_out,
+                            amount0_in: normalize(event.amount0_in, token0.decimals),
+                            amount0_out: normalize(event.amount0_out, token0.decimals),
+                            amount1_in: normalize(event.amount1_in, token1.decimals),
+                            amount1_out: normalize(event.amount1_out, token1.decimals),
                         });
                     }
                 }
 
                 Event::Mint(event) => {
-                    if let Some(token_symbol) = pool_address_to_symbol.get(&event.address) {
+                    if let Some((token0, token1)) = pool_address_to_tokens.get(&event.address) {
                         liquidity_providing.push(LiquidityTick {
-                            token_symbol: token_symbol.clone(),
+                            token0_symbol: token0.symbol.clone(),
+                            token1_symbol: token1.symbol.clone(),
                             block_number: event.block_number,
                             address: event.address,
                             sender: event.sender,
-                            amount0: event.amount0,
-                            amount1: event.amount1,
+                            amount0: normalize(event.amount0, token0.decimals),
+                            amount1: normalize(event.amount1, token1.decimals),
                         });
                     }
                 }
 
                 Event::Burn(event) => {
-                    if let Some(token_symbol) = pool_address_to_symbol.get(&event.address) {
+                    if let Some((token0, token1)) = pool_address_to_tokens.get(&event.address) {
                         liquidity_providing.push(LiquidityTick {
-                            token_symbol: token_symbol.clone(),
+                            token0_symbol: token0.symbol.clone(),
+                            token1_symbol: token1.symbol.clone(),
                             block_number: event.block_number,
                             address: event.address,
                             sender: event.sender,
-                            amount0: event.amount0,
-                            amount1: event.amount1,
+                            amount0: normalize(event.amount0, token0.decimals),
+                            amount1: normalize(event.amount1, token1.decimals),
                         });
                     }
                 }
@@ -189,4 +211,24 @@ impl LogsProcessor {
 
         wtr.flush().unwrap();
     }
+
+    async fn get_decimals(&self, token_address: Address) -> u64 {
+        let http = Http::new(&self.rpc).expect("Can't connect to RPC");
+        let web3 = Web3::new(http);
+
+        let abi = include_bytes!("../../abi/factory.abi");
+        let contract = Contract::from_json(web3.eth(), token_address, abi)
+            .expect("Failed to create contract from ABI");
+
+        let decimals: U256 = contract
+            .query("decimals", (), None, Options::default(), None)
+            .await
+            .expect("Invalid query for all pairs length");
+
+        return decimals.as_u64();
+    }
+}
+
+fn normalize(amount: U256, decimals: u64) -> f64 {
+    (amount.as_u128() as f64) / decimals as f64
 }

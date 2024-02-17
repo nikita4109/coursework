@@ -2,51 +2,44 @@ use serde::Serializer;
 use serde::{Deserialize, Serialize};
 use web3::types::{Address, U256};
 
-fn serialize_u256_as_decimal<S>(value: &U256, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    let decimal_str = value.to_string(); // Converts U256 to decimal/base 10 string.
-    serializer.serialize_str(&decimal_str)
+pub struct Token {
+    pub symbol: String,
+    pub address: Address,
+    pub decimals: u64,
 }
 
 #[derive(Debug, Serialize)]
 pub struct SyncTick {
-    pub token_symbol: String,
+    pub token0_symbol: String,
+    pub token1_symbol: String,
     pub block_number: u64,
     pub address: Address,
-    #[serde(serialize_with = "serialize_u256_as_decimal")]
-    pub reserve0: U256,
-    #[serde(serialize_with = "serialize_u256_as_decimal")]
-    pub reserve1: U256,
+    pub reserve0: f64,
+    pub reserve1: f64,
 }
 
 #[derive(Debug, Serialize)]
 pub struct SwapTick {
-    pub token_symbol: String,
+    pub token0_symbol: String,
+    pub token1_symbol: String,
     pub block_number: u64,
     pub address: Address,
     pub sender: Address,
-    #[serde(serialize_with = "serialize_u256_as_decimal")]
-    pub amount0_in: U256,
-    #[serde(serialize_with = "serialize_u256_as_decimal")]
-    pub amount0_out: U256,
-    #[serde(serialize_with = "serialize_u256_as_decimal")]
-    pub amount1_in: U256,
-    #[serde(serialize_with = "serialize_u256_as_decimal")]
-    pub amount1_out: U256,
+    pub amount0_in: f64,
+    pub amount0_out: f64,
+    pub amount1_in: f64,
+    pub amount1_out: f64,
 }
 
 #[derive(Debug, Serialize)]
 pub struct LiquidityTick {
-    pub token_symbol: String,
+    pub token0_symbol: String,
+    pub token1_symbol: String,
     pub block_number: u64,
     pub address: Address,
     pub sender: Address,
-    #[serde(serialize_with = "serialize_u256_as_decimal")]
-    pub amount0: U256,
-    #[serde(serialize_with = "serialize_u256_as_decimal")]
-    pub amount1: U256,
+    pub amount0: f64,
+    pub amount1: f64,
 }
 
 #[derive(Debug, Deserialize)]

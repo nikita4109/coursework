@@ -35,6 +35,9 @@ struct LogsCollectorArgs {
 #[derive(Parser)]
 struct LogsProcessorArgs {
     #[arg(short, long)]
+    rpc: String,
+
+    #[arg(short, long)]
     cex_data_path: String,
 
     #[arg(short, long)]
