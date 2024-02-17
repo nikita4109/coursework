@@ -78,7 +78,7 @@ async fn main() {
         Commands::LogsProcessor(args) => {
             let output_dir = args.output_dir.clone();
             let processor = logs_processor::LogsProcessor::new(args);
-            processor.write_csv(&output_dir);
+            processor.write_csv(&output_dir).await;
         }
 
         Commands::PoolsCollector(args) => {
