@@ -465,6 +465,7 @@ dependencies = [
  "clap",
  "csv",
  "ethabi",
+ "futures",
  "lazy_static",
  "rand",
  "reqwest",
