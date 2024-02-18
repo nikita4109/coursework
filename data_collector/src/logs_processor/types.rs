@@ -2,6 +2,7 @@ use serde::Serializer;
 use serde::{Deserialize, Serialize};
 use web3::types::{Address, U256};
 
+#[derive(Default, Clone)]
 pub struct Token {
     pub symbol: String,
     pub address: Address,
@@ -18,6 +19,8 @@ pub struct SyncTick {
     pub address: Address,
     pub reserve0: f64,
     pub reserve1: f64,
+    pub token0_usd_price: f64,
+    pub token1_usd_price: f64,
 }
 
 #[derive(Debug, Serialize)]
@@ -33,6 +36,8 @@ pub struct SwapTick {
     pub amount0_out: f64,
     pub amount1_in: f64,
     pub amount1_out: f64,
+    pub token0_usd_price: f64,
+    pub token1_usd_price: f64,
 }
 
 #[derive(Debug, Serialize)]
@@ -46,6 +51,8 @@ pub struct LiquidityTick {
     pub sender: Address,
     pub amount0: f64,
     pub amount1: f64,
+    pub token0_usd_price: f64,
+    pub token1_usd_price: f64,
 }
 
 #[derive(Debug, Deserialize)]

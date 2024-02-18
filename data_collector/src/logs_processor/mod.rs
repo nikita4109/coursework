@@ -1,3 +1,4 @@
+mod price_agregator;
 mod types;
 
 use self::types::{CEXData, SyncTick, Token};
@@ -135,6 +136,18 @@ impl LogsProcessor {
             pool_address_to_tokens.insert(address, (token0, token1));
         }
 
+        let mut price_agregator = price_agregator::PriceAgregator::new(vec![
+            "0xdac17f958d2ee523a2206206994597c13d831ec7"
+                .parse()
+                .unwrap(),
+            "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+                .parse()
+                .unwrap(),
+            "0x6b175474e89094c44da98b954eedeac495271d0f"
+                .parse()
+                .unwrap(),
+        ]);
+
         let mut reserves = Vec::new();
         let mut swaps = Vec::new();
         let mut liquidity_providing = Vec::new();
@@ -142,6 +155,8 @@ impl LogsProcessor {
             match event {
                 Event::Sync(event) => {
                     if let Some((token0, token1)) = pool_address_to_tokens.get(&event.address) {
+                        price_agregator.handle_sync(token0, token1, event);
+
                         reserves.push(SyncTick {
                             token0_symbol: token0.symbol.clone(),
                             token1_symbol: token1.symbol.clone(),
@@ -151,6 +166,8 @@ impl LogsProcessor {
                             address: event.address,
                             reserve0: normalize(event.reserve0, token0.decimals),
                             reserve1: normalize(event.reserve1, token1.decimals),
+                            token0_usd_price: price_agregator.token_usd_price(token0),
+                            token1_usd_price: price_agregator.token_usd_price(token1),
                         });
                     }
                 }
@@ -169,6 +186,8 @@ impl LogsProcessor {
                             amount0_out: normalize(event.amount0_out, token0.decimals),
                             amount1_in: normalize(event.amount1_in, token1.decimals),
                             amount1_out: normalize(event.amount1_out, token1.decimals),
+                            token0_usd_price: price_agregator.token_usd_price(token0),
+                            token1_usd_price: price_agregator.token_usd_price(token1),
                         });
                     }
                 }
@@ -185,6 +204,8 @@ impl LogsProcessor {
                             sender: event.sender,
                             amount0: normalize(event.amount0, token0.decimals),
                             amount1: normalize(event.amount1, token1.decimals),
+                            token0_usd_price: price_agregator.token_usd_price(token0),
+                            token1_usd_price: price_agregator.token_usd_price(token1),
                         });
                     }
                 }
@@ -201,6 +222,8 @@ impl LogsProcessor {
                             sender: event.sender,
                             amount0: -normalize(event.amount0, token0.decimals),
                             amount1: -normalize(event.amount1, token1.decimals),
+                            token0_usd_price: price_agregator.token_usd_price(token0),
+                            token1_usd_price: price_agregator.token_usd_price(token1),
                         });
                     }
                 }
