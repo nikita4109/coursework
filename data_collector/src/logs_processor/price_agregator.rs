@@ -1,4 +1,4 @@
-use super::{types::SyncEvent, u256_to_f64};
+use super::{normalize, types::SyncEvent, u256_to_f64};
 use crate::logs_processor::types::Token;
 use ethabi::token;
 use serde::de;
@@ -19,15 +19,15 @@ struct Pool {
 
 impl Pool {
     fn price0(&self) -> f64 {
-        let reserve0 = u256_to_f64(self.reserve0);
-        let reserve1 = u256_to_f64(self.reserve1);
+        let reserve0 = normalize(self.reserve0, self.token0.decimals);
+        let reserve1 = normalize(self.reserve1, self.token1.decimals);
 
         reserve0 / reserve1
     }
 
     fn price1(&self) -> f64 {
-        let reserve0 = u256_to_f64(self.reserve0);
-        let reserve1 = u256_to_f64(self.reserve1);
+        let reserve0 = normalize(self.reserve0, self.token0.decimals);
+        let reserve1 = normalize(self.reserve1, self.token1.decimals);
 
         reserve1 / reserve0
     }
