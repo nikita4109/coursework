@@ -244,8 +244,8 @@ impl LogsProcessor {
                             block_number: event.block_number,
                             address: event.address,
                             sender: event.sender,
-                            amount0: event.amount0 * U256::from(-1),
-                            amount1: event.amount1 * U256::from(-1),
+                            amount0: event.amount0,
+                            amount1: event.amount1,
                             token0_usd_price: price_agregator.token_usd_price(token0),
                             token1_usd_price: price_agregator.token_usd_price(token1),
                         });
