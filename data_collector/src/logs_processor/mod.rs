@@ -188,8 +188,8 @@ impl LogsProcessor {
                             token1_address: token1.address,
                             block_number: event.block_number,
                             address: event.address,
-                            reserve0: event.reserve0,
-                            reserve1: event.reserve1,
+                            reserve0: u256_to_f64(event.reserve0),
+                            reserve1: u256_to_f64(event.reserve1),
                             token0_usd_price: price_agregator.token_usd_price(token0),
                             token1_usd_price: price_agregator.token_usd_price(token1),
                         });
@@ -206,10 +206,10 @@ impl LogsProcessor {
                             block_number: event.block_number,
                             address: event.address,
                             sender: event.sender,
-                            amount0_in: event.amount0_in,
-                            amount0_out: event.amount0_out,
-                            amount1_in: event.amount1_in,
-                            amount1_out: event.amount1_out,
+                            amount0_in: u256_to_f64(event.amount0_in),
+                            amount0_out: u256_to_f64(event.amount0_out),
+                            amount1_in: u256_to_f64(event.amount1_in),
+                            amount1_out: u256_to_f64(event.amount1_out),
                             token0_usd_price: price_agregator.token_usd_price(token0),
                             token1_usd_price: price_agregator.token_usd_price(token1),
                         });
@@ -226,8 +226,8 @@ impl LogsProcessor {
                             block_number: event.block_number,
                             address: event.address,
                             sender: event.sender,
-                            amount0: event.amount0,
-                            amount1: event.amount1,
+                            amount0: u256_to_f64(event.amount0),
+                            amount1: u256_to_f64(event.amount1),
                             token0_usd_price: price_agregator.token_usd_price(token0),
                             token1_usd_price: price_agregator.token_usd_price(token1),
                         });
@@ -244,8 +244,8 @@ impl LogsProcessor {
                             block_number: event.block_number,
                             address: event.address,
                             sender: event.sender,
-                            amount0: event.amount0,
-                            amount1: event.amount1,
+                            amount0: u256_to_f64(event.amount0),
+                            amount1: u256_to_f64(event.amount1),
                             token0_usd_price: price_agregator.token_usd_price(token0),
                             token1_usd_price: price_agregator.token_usd_price(token1),
                         });
@@ -302,6 +302,9 @@ impl LogsProcessor {
 }
 
 pub fn normalize(amount: U256, decimals: u64) -> f64 {
-    let amount: f64 = amount.to_string().parse().unwrap();
-    amount / 10.0_f64.powf(decimals as f64)
+    u256_to_f64(amount) / 10.0_f64.powf(decimals as f64)
+}
+
+pub fn u256_to_f64(a: U256) -> f64 {
+    a.to_string().parse().unwrap()
 }
