@@ -18,14 +18,14 @@ struct Pool {
 }
 
 impl Pool {
-    fn price0(&self) -> f64 {
+    fn price1(&self) -> f64 {
         let reserve0 = normalize(self.reserve0, self.token0.decimals);
         let reserve1 = normalize(self.reserve1, self.token1.decimals);
 
         reserve1 / reserve0
     }
 
-    fn price1(&self) -> f64 {
+    fn price0(&self) -> f64 {
         let reserve0 = normalize(self.reserve0, self.token0.decimals);
         let reserve1 = normalize(self.reserve1, self.token1.decimals);
 
