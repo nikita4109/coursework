@@ -107,6 +107,8 @@ impl PriceAgregator {
             None => pool.clone(),
         };
 
+        println!("{} {:?}", token.symbol, best_pool.address);
+
         self.token_to_biggest_pool
             .insert(token.address, best_pool.clone());
 
