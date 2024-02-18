@@ -199,8 +199,8 @@ impl LogsProcessor {
                             block_number: event.block_number,
                             address: event.address,
                             sender: event.sender,
-                            amount0: normalize(event.amount0, token0.decimals),
-                            amount1: normalize(event.amount1, token1.decimals),
+                            amount0: -normalize(event.amount0, token0.decimals),
+                            amount1: -normalize(event.amount1, token1.decimals),
                         });
                     }
                 }
