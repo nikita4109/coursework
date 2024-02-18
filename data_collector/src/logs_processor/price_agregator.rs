@@ -22,14 +22,14 @@ impl Pool {
         let reserve0 = u256_to_f64(self.reserve0);
         let reserve1 = u256_to_f64(self.reserve1);
 
-        reserve0 / reserve1
+        reserve1 / reserve0
     }
 
     fn price1(&self) -> f64 {
         let reserve0 = u256_to_f64(self.reserve0);
         let reserve1 = u256_to_f64(self.reserve1);
 
-        reserve1 / reserve0
+        reserve0 / reserve1
     }
 }
 
