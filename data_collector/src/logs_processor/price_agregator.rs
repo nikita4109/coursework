@@ -19,15 +19,15 @@ struct Pool {
 
 impl Pool {
     fn price0(&self) -> f64 {
-        let reserve0 = normalize(self.reserve0, self.token0.decimals);
-        let reserve1 = normalize(self.reserve1, self.token1.decimals);
+        let reserve0 = u256_to_f64(self.reserve0);
+        let reserve1 = u256_to_f64(self.reserve1);
 
         reserve0 / reserve1
     }
 
     fn price1(&self) -> f64 {
-        let reserve0 = normalize(self.reserve0, self.token0.decimals);
-        let reserve1 = normalize(self.reserve1, self.token1.decimals);
+        let reserve0 = u256_to_f64(self.reserve0);
+        let reserve1 = u256_to_f64(self.reserve1);
 
         reserve1 / reserve0
     }
