@@ -108,6 +108,9 @@ impl PriceAgregator {
             return 1.0;
         }
 
-        *self.tokens_prices.get(&token.address).unwrap()
+        match self.tokens_prices.get(&token.address) {
+            Some(r) => *r,
+            None => 0.0,
+        }
     }
 }
