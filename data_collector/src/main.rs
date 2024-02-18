@@ -16,7 +16,7 @@ enum Commands {
     LogsCollector(LogsCollectorArgs),
     LogsProcessor(LogsProcessorArgs),
     PoolsCollector(PoolsCollectorArgs),
-    BlocksHeaderCollector(BlocksHeaderCollectorArgs),
+    BlocksCollector(BlocksCollectorArgs),
 }
 
 #[derive(Parser)]
@@ -62,7 +62,7 @@ struct PoolsCollectorArgs {
 }
 
 #[derive(Parser)]
-struct BlocksHeaderCollectorArgs {
+struct BlocksCollectorArgs {
     #[arg(short, long)]
     rpc: String,
 
@@ -103,7 +103,7 @@ async fn main() {
             pools_collector.collect().await;
         }
 
-        Commands::BlocksHeaderCollector(args) => {
+        Commands::BlocksCollector(args) => {
             blocks_collector::collect(args).await;
         }
     };

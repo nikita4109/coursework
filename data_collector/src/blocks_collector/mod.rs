@@ -5,7 +5,7 @@ use web3::transports::Http;
 use web3::types::{Block, BlockId, BlockNumber, H256};
 use web3::Web3;
 
-use crate::BlocksHeaderCollectorArgs;
+use crate::BlocksCollectorArgs;
 
 #[derive(Serialize)]
 struct BlockRecord {
@@ -15,7 +15,7 @@ struct BlockRecord {
     gas_used: u64,
 }
 
-pub async fn collect(args: BlocksHeaderCollectorArgs) {
+pub async fn collect(args: BlocksCollectorArgs) {
     let http = Http::new(&args.rpc).expect("Can not create http");
     let web3 = Web3::new(http);
 
