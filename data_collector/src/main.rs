@@ -1,5 +1,6 @@
 use clap::{Parser, Subcommand};
 
+mod blocks_collector;
 mod logs_collector;
 mod logs_processor;
 mod pools_collector;
@@ -15,6 +16,7 @@ enum Commands {
     LogsCollector(LogsCollectorArgs),
     LogsProcessor(LogsProcessorArgs),
     PoolsCollector(PoolsCollectorArgs),
+    BlocksHeaderCollector(BlocksHeaderCollectorArgs),
 }
 
 #[derive(Parser)]
@@ -59,6 +61,21 @@ struct PoolsCollectorArgs {
     output_filepath: String,
 }
 
+#[derive(Parser)]
+struct BlocksHeaderCollectorArgs {
+    #[arg(short, long)]
+    rpc: String,
+
+    #[arg(short, long)]
+    start_block: u64,
+
+    #[arg(short, long)]
+    end_block: u64,
+
+    #[arg(short, long)]
+    output_filepath: String,
+}
+
 #[tokio::main]
 async fn main() {
     let cli = Cli::parse();
@@ -84,6 +101,10 @@ async fn main() {
         Commands::PoolsCollector(args) => {
             let pools_collector = pools_collector::PoolCollector::new(args);
             pools_collector.collect().await;
+        }
+
+        Commands::BlocksHeaderCollector(args) => {
+            blocks_collector::collect(args).await;
         }
     };
 }
