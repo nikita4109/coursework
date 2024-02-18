@@ -71,7 +71,19 @@ impl PriceAgregator {
     fn update_price(&mut self, token: &Token, pool: &Pool) {
         let best_pool = match self.token_to_biggest_pool.get(&token.address) {
             Some(biggest_pool) => {
-                if biggest_pool.reserve0 < pool.reserve0 || biggest_pool.reserve1 < pool.reserve1 {
+                let reserve_biggest = if biggest_pool.token0.address == token.address {
+                    biggest_pool.reserve0
+                } else {
+                    biggest_pool.reserve1
+                };
+
+                let reserve_current = if pool.token0.address == token.address {
+                    pool.reserve0
+                } else {
+                    pool.reserve1
+                };
+
+                if reserve_biggest < reserve_current {
                     pool.clone()
                 } else {
                     biggest_pool.clone()
