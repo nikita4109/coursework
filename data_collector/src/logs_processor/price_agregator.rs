@@ -34,7 +34,7 @@ impl Pool {
 pub struct PriceAgregator {
     usd_token_addresses: HashSet<Address>,
     pools: HashMap<Address, Pool>,
-    token_to_pools: HashMap<Address, Vec<Address>>,
+    token_to_biggest_pool: HashMap<Address, Pool>,
     tokens_prices: HashMap<Address, f64>,
 }
 
@@ -48,38 +48,40 @@ impl PriceAgregator {
         PriceAgregator {
             usd_token_addresses: hashset,
             pools: HashMap::new(),
-            token_to_pools: HashMap::new(),
+            token_to_biggest_pool: HashMap::new(),
             tokens_prices: HashMap::new(),
         }
     }
 
     pub fn handle_sync(&mut self, token0: &Token, token1: &Token, event: &SyncEvent) {
-        self.token_to_pools
-            .entry(token0.address)
-            .and_modify(|v| v.push(event.address))
-            .or_insert_with(|| vec![event.address]);
-        self.token_to_pools
-            .entry(token1.address)
-            .and_modify(|v| v.push(event.address))
-            .or_insert_with(|| vec![event.address]);
+        let pool = Pool {
+            address: event.address,
+            token0: token0.clone(),
+            token1: token1.clone(),
+            reserve0: event.reserve0,
+            reserve1: event.reserve1,
+        };
 
-        self.pools.insert(
-            event.address,
-            Pool {
-                address: event.address,
-                token0: token0.clone(),
-                token1: token1.clone(),
-                reserve0: event.reserve0,
-                reserve1: event.reserve1,
-            },
-        );
+        self.pools.insert(event.address, pool.clone());
 
-        self.update_price(token0);
-        self.update_price(token1);
+        self.update_price(token0, &pool);
+        self.update_price(token1, &pool);
     }
 
-    fn update_price(&mut self, token: &Token) {
-        let best_pool = self.find_biggest_pool(token);
+    fn update_price(&mut self, token: &Token, pool: &Pool) {
+        let best_pool = match self.token_to_biggest_pool.get(&token.address) {
+            Some(biggest_pool) => {
+                if biggest_pool.reserve0 < pool.reserve0 || biggest_pool.reserve1 < pool.reserve1 {
+                    pool.clone()
+                } else {
+                    biggest_pool.clone()
+                }
+            }
+            None => pool.clone(),
+        };
+
+        self.token_to_biggest_pool
+            .insert(token.address, best_pool.clone());
 
         let usd_price = if best_pool.token0.address == token.address {
             best_pool.price0() * self.token_usd_price(&best_pool.token1)
@@ -88,19 +90,6 @@ impl PriceAgregator {
         };
 
         self.tokens_prices.insert(token.address, usd_price);
-    }
-
-    fn find_biggest_pool(&self, token: &Token) -> Pool {
-        let mut best_pool = Pool::default();
-
-        for address in self.token_to_pools.get(&token.address).unwrap() {
-            let pool = self.pools.get(address).unwrap();
-            if best_pool.reserve0 < pool.reserve0 || best_pool.reserve1 < pool.reserve1 {
-                best_pool = pool.clone();
-            }
-        }
-
-        best_pool
     }
 
     pub fn token_usd_price(&self, token: &Token) -> f64 {
