@@ -10,7 +10,7 @@ use csv::Reader;
 use csv::Writer;
 use ethabi::token;
 use serde::Serialize;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::{BufReader, Read};
 use std::path::Path;
 use std::{fs::File, io::BufRead};
@@ -136,7 +136,7 @@ impl LogsProcessor {
             pool_address_to_tokens.insert(address, (token0, token1));
         }
 
-        let mut price_agregator = price_agregator::PriceAgregator::new(vec![
+        let usd_token_addresses = vec![
             "0xdac17f958d2ee523a2206206994597c13d831ec7"
                 .parse()
                 .unwrap(),
@@ -146,7 +146,31 @@ impl LogsProcessor {
             "0x6b175474e89094c44da98b954eedeac495271d0f"
                 .parse()
                 .unwrap(),
-        ]);
+        ];
+
+        let decent_tokens = vec![
+            "0xdac17f958d2ee523a2206206994597c13d831ec7"
+                .parse()
+                .unwrap(),
+            "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+                .parse()
+                .unwrap(),
+            "0x6b175474e89094c44da98b954eedeac495271d0f"
+                .parse()
+                .unwrap(),
+            "0xB8c77482e45F1F44dE1745F52C74426C631bDD52"
+                .parse()
+                .unwrap(),
+            "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599"
+                .parse()
+                .unwrap(),
+            "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+                .parse()
+                .unwrap(),
+        ];
+
+        let mut price_agregator =
+            price_agregator::PriceAgregator::new(usd_token_addresses, decent_tokens);
 
         let mut reserves = Vec::new();
         let mut swaps = Vec::new();

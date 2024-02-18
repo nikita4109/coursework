@@ -1,5 +1,7 @@
 use super::{types::SyncEvent, u256_to_f64};
 use crate::logs_processor::types::Token;
+use ethabi::token;
+use serde::de;
 use std::{
     collections::{HashMap, HashSet},
     ops::Add,
@@ -36,20 +38,27 @@ pub struct PriceAgregator {
     pools: HashMap<Address, Pool>,
     token_to_biggest_pool: HashMap<Address, Pool>,
     tokens_prices: HashMap<Address, f64>,
+    decent_token_addresses: HashSet<Address>,
 }
 
 impl PriceAgregator {
-    pub fn new(usd_token_addresses: Vec<Address>) -> Self {
-        let mut hashset = HashSet::new();
+    pub fn new(usd_token_addresses: Vec<Address>, decent_token_addresses: Vec<Address>) -> Self {
+        let mut usd_tokens_hashset = HashSet::new();
         for address in usd_token_addresses {
-            hashset.insert(address);
+            usd_tokens_hashset.insert(address);
+        }
+
+        let mut decent_tokens_hashset = HashSet::new();
+        for address in decent_token_addresses {
+            decent_tokens_hashset.insert(address);
         }
 
         PriceAgregator {
-            usd_token_addresses: hashset,
+            usd_token_addresses: usd_tokens_hashset,
             pools: HashMap::new(),
             token_to_biggest_pool: HashMap::new(),
             tokens_prices: HashMap::new(),
+            decent_token_addresses: decent_tokens_hashset,
         }
     }
 
@@ -69,6 +78,12 @@ impl PriceAgregator {
     }
 
     fn update_price(&mut self, token: &Token, pool: &Pool) {
+        if self.decent_token_addresses.contains(&pool.token0.address)
+            || self.decent_token_addresses.contains(&pool.token1.address)
+        {
+            return;
+        }
+
         let best_pool = match self.token_to_biggest_pool.get(&token.address) {
             Some(biggest_pool) => {
                 let reserve_biggest = if biggest_pool.token0.address == token.address {
