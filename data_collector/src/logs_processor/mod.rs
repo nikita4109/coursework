@@ -302,38 +302,6 @@ impl LogsProcessor {
 }
 
 pub fn normalize(amount: U256, decimals: u64) -> f64 {
-    u256_to_f64(amount) / 10.0_f64.powf(decimals as f64)
-}
-
-fn u256_to_f64(value: U256) -> f64 {
-    if value == U256::zero() {
-        return 0.0;
-    }
-
-    // Check if the U256 value is within the f64 range
-    if value <= U256::from(u64::MAX) {
-        // If the value fits within u64, convert directly to f64
-        value.as_u64() as f64
-    } else {
-        // For larger values, calculate the number of significant bits safely
-        let bits = value.bits();
-        let leading_zeros = value.leading_zeros();
-        let significant_bits = bits.saturating_sub(leading_zeros as usize);
-
-        // Calculate the approximate power of 2
-        let exponent = significant_bits.saturating_sub(53).max(0);
-        let fraction = if exponent > 0 {
-            value >> exponent
-        } else {
-            value
-        };
-
-        // Convert the fraction to f64, then adjust with the exponent
-        let f64_value = fraction.low_u64() as f64;
-        if exponent > 0 {
-            f64_value * 2f64.powi(exponent as i32)
-        } else {
-            f64_value
-        }
-    }
+    let amount: f64 = amount.to_string().parse().unwrap();
+    amount / 10.0_f64.powf(decimals as f64)
 }

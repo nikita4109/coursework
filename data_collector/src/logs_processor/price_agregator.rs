@@ -1,4 +1,4 @@
-use super::{normalize, types::SyncEvent, u256_to_f64};
+use super::{normalize, types::SyncEvent};
 use crate::logs_processor::types::Token;
 use ethabi::token;
 use serde::de;
