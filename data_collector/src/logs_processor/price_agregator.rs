@@ -87,9 +87,9 @@ impl PriceAgregator {
             .insert(token.address, best_pool.clone());
 
         let usd_price = if best_pool.token0.address == token.address {
-            best_pool.price0() * self.token_usd_price(&best_pool.token1)
+            best_pool.price0() * self.price(&best_pool.token1)
         } else {
-            best_pool.price1() * self.token_usd_price(&best_pool.token0)
+            best_pool.price1() * self.price(&best_pool.token0)
         };
 
         self.tokens_prices.insert(token.address, usd_price);
@@ -150,6 +150,17 @@ impl PriceAgregator {
 
                 Some(pool)
             }
+        }
+    }
+
+    fn price(&mut self, token: &Token) -> f64 {
+        if self.usd_token_addresses.contains(&token.address) {
+            return 1.0;
+        }
+
+        match self.tokens_prices.get(&token.address) {
+            Some(r) => *r,
+            None => 0.0,
         }
     }
 
