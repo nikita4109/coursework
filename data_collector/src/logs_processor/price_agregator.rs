@@ -78,11 +78,11 @@ impl PriceAgregator {
     }
 
     fn update_price(&mut self, token: &Token, pool: &Pool) {
-        // if !(self.decent_token_addresses.contains(&pool.token0.address)
-        //     || self.decent_token_addresses.contains(&pool.token1.address))
-        // {
-        //     return;
-        // }
+        if self.decent_token_addresses.contains(&pool.token0.address) 
+            != self.decent_token_addresses.contains(&pool.token1.address)
+        {
+            return;
+        }
 
         let best_pool = match self.token_to_biggest_pool.get(&token.address) {
             Some(biggest_pool) => {
