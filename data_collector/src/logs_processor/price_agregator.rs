@@ -84,7 +84,7 @@ impl PriceAgregator {
                     self.decent_token_addresses.contains(&pool.token0.address) != 
                     self.decent_token_addresses.contains(&pool.token1.address)
                 {
-                    biggest_pool
+                    biggest_pool.clone()
                 }
 
                 let reserve_biggest = if biggest_pool.token0.address == token.address {
