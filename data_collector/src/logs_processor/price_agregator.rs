@@ -73,11 +73,11 @@ impl PriceAgregator {
 
         self.pools.insert(event.address, pool.clone());
 
-        self.update_price(token0, Some(pool.clone()));
-        self.update_price(token1, Some(pool.clone()));
+        self.update_price(token0, Some(pool.clone()), event);
+        self.update_price(token1, Some(pool.clone()), event);
     }
 
-    fn update_price(&mut self, token: &Token, pool: Option<Pool>) {
+    fn update_price(&mut self, token: &Token, pool: Option<Pool>, event: &SyncEvent) {
         let best_pool = match self.find_best_pool(token, pool) {
             Some(r) => r,
             None => return,
@@ -96,8 +96,13 @@ impl PriceAgregator {
 
         if token.symbol == "WETH" {
             println!(
-                "{} {:?} {:?} {:?} {:.5}",
-                token.symbol, best_pool.address, best_pool.reserve0, best_pool.reserve1, usd_price
+                "{} {} {:?} {:?} {:?} {:.5}",
+                event.block_number,
+                token.symbol,
+                best_pool.address,
+                best_pool.reserve0,
+                best_pool.reserve1,
+                usd_price
             );
         }
     }
@@ -168,8 +173,6 @@ impl PriceAgregator {
         if self.usd_token_addresses.contains(&token.address) {
             return 1.0;
         }
-
-        self.update_price(token, None);
 
         match self.tokens_prices.get(&token.address) {
             Some(r) => *r,
