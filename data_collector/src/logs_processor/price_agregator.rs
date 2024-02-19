@@ -73,11 +73,11 @@ impl PriceAgregator {
 
         self.pools.insert(event.address, pool.clone());
 
-        self.update_price(token0, &pool);
-        self.update_price(token1, &pool);
+        self.update_price(token0, Some(pool.clone()));
+        self.update_price(token1, Some(pool.clone()));
     }
 
-    fn update_price(&mut self, token: &Token, pool: &Pool) {
+    fn update_price(&mut self, token: &Token, pool: Option<Pool>) {
         let best_pool = match self.find_best_pool(token, pool) {
             Some(r) => r,
             None => return,
@@ -102,9 +102,14 @@ impl PriceAgregator {
         }
     }
 
-    fn find_best_pool(&mut self, token: &Token, pool: &Pool) -> Option<Pool> {
+    fn find_best_pool(&mut self, token: &Token, pool: Option<Pool>) -> Option<Pool> {
         match self.token_to_biggest_pool.get(&token.address) {
             Some(biggest_pool) => {
+                let pool = match pool {
+                    Some(r) => r,
+                    None => return Some(biggest_pool.clone()),
+                };
+
                 if self.decent_token_addresses.contains(&token.address)
                     && self.decent_token_addresses.contains(&pool.token0.address)
                         != self.decent_token_addresses.contains(&pool.token1.address)
@@ -131,6 +136,11 @@ impl PriceAgregator {
                 }
             }
             None => {
+                let pool = match pool {
+                    Some(r) => r,
+                    None => return None,
+                };
+
                 if self.decent_token_addresses.contains(&token.address)
                     && self.decent_token_addresses.contains(&pool.token0.address)
                         != self.decent_token_addresses.contains(&pool.token1.address)
@@ -138,15 +148,17 @@ impl PriceAgregator {
                     return None;
                 }
 
-                Some(pool.clone())
+                Some(pool)
             }
         }
     }
 
-    pub fn token_usd_price(&self, token: &Token) -> f64 {
+    pub fn token_usd_price(&mut self, token: &Token) -> f64 {
         if self.usd_token_addresses.contains(&token.address) {
             return 1.0;
         }
+
+        self.update_price(token, None);
 
         match self.tokens_prices.get(&token.address) {
             Some(r) => *r,
