@@ -117,6 +117,8 @@ impl PriceAgregator {
         };
 
         self.tokens_prices.insert(token.address, usd_price);
+
+        println!("{} {:?} {:?} {:?} {:.5}", token.symbol, best_pool.address, best_pool.reserve0, best_pool.reserve1, usd_price);
     }
 
     pub fn token_usd_price(&self, token: &Token) -> f64 {
