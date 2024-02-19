@@ -78,8 +78,9 @@ impl PriceAgregator {
     }
 
     fn update_price(&mut self, token: &Token, pool: &Pool) {
-        if self.decent_token_addresses.contains(&pool.token0.address) 
-            != self.decent_token_addresses.contains(&pool.token1.address)
+        if self.decent_token_addresses.contains(&token.address) && 
+            self.decent_token_addresses.contains(&pool.token0.address) != 
+            self.decent_token_addresses.contains(&pool.token1.address)
         {
             return;
         }
