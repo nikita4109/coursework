@@ -78,13 +78,38 @@ impl PriceAgregator {
     }
 
     fn update_price(&mut self, token: &Token, pool: &Pool) {
-        let best_pool = match self.token_to_biggest_pool.get(&token.address) {
+        let best_pool = match self.find_best_pool(token, pool) {
+            Some(r) => r,
+            None => return,
+        };
+
+        self.token_to_biggest_pool
+            .insert(token.address, best_pool.clone());
+
+        let usd_price = if best_pool.token0.address == token.address {
+            best_pool.price0() * self.token_usd_price(&best_pool.token1)
+        } else {
+            best_pool.price1() * self.token_usd_price(&best_pool.token0)
+        };
+
+        self.tokens_prices.insert(token.address, usd_price);
+
+        if token.symbol == "WETH" {
+            println!(
+                "{} {:?} {:?} {:?} {:.5}",
+                token.symbol, best_pool.address, best_pool.reserve0, best_pool.reserve1, usd_price
+            );
+        }
+    }
+
+    fn find_best_pool(&mut self, token: &Token, pool: &Pool) -> Option<Pool> {
+        match self.token_to_biggest_pool.get(&token.address) {
             Some(biggest_pool) => {
-                if self.decent_token_addresses.contains(&token.address) && 
-                    self.decent_token_addresses.contains(&pool.token0.address) != 
-                    self.decent_token_addresses.contains(&pool.token1.address)
+                if self.decent_token_addresses.contains(&token.address)
+                    && self.decent_token_addresses.contains(&pool.token0.address)
+                        != self.decent_token_addresses.contains(&pool.token1.address)
                 {
-                    biggest_pool.clone()
+                    return Some(biggest_pool.clone());
                 }
 
                 let reserve_biggest = if biggest_pool.token0.address == token.address {
@@ -100,36 +125,21 @@ impl PriceAgregator {
                 };
 
                 if reserve_biggest < reserve_current {
-                    pool.clone()
+                    Some(pool.clone())
                 } else {
-                    biggest_pool.clone()
+                    Some(biggest_pool.clone())
                 }
             }
             None => {
-                if self.decent_token_addresses.contains(&token.address) && 
-                    self.decent_token_addresses.contains(&pool.token0.address) != 
-                    self.decent_token_addresses.contains(&pool.token1.address)
+                if self.decent_token_addresses.contains(&token.address)
+                    && self.decent_token_addresses.contains(&pool.token0.address)
+                        != self.decent_token_addresses.contains(&pool.token1.address)
                 {
-                    return;
+                    return None;
                 }
 
-                pool.clone()
+                Some(pool.clone())
             }
-        };
-
-        self.token_to_biggest_pool
-            .insert(token.address, best_pool.clone());
-
-        let usd_price = if best_pool.token0.address == token.address {
-            best_pool.price0() * self.token_usd_price(&best_pool.token1)
-        } else {
-            best_pool.price1() * self.token_usd_price(&best_pool.token0)
-        };
-
-        self.tokens_prices.insert(token.address, usd_price);
-
-        if token.symbol == "WETH" {
-            println!("{} {:?} {:?} {:?} {:.5}", token.symbol, best_pool.address, best_pool.reserve0, best_pool.reserve1, usd_price);
         }
     }
 
