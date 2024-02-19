@@ -78,15 +78,15 @@ impl PriceAgregator {
     }
 
     fn update_price(&mut self, token: &Token, pool: &Pool) {
-        if self.decent_token_addresses.contains(&token.address) && 
-            self.decent_token_addresses.contains(&pool.token0.address) != 
-            self.decent_token_addresses.contains(&pool.token1.address)
-        {
-            return;
-        }
-
         let best_pool = match self.token_to_biggest_pool.get(&token.address) {
             Some(biggest_pool) => {
+                if self.decent_token_addresses.contains(&token.address) && 
+                    self.decent_token_addresses.contains(&pool.token0.address) != 
+                    self.decent_token_addresses.contains(&pool.token1.address)
+                {
+                    biggest_pool
+                }
+
                 let reserve_biggest = if biggest_pool.token0.address == token.address {
                     biggest_pool.reserve0
                 } else {
@@ -105,7 +105,16 @@ impl PriceAgregator {
                     biggest_pool.clone()
                 }
             }
-            None => pool.clone(),
+            None => {
+                if self.decent_token_addresses.contains(&token.address) && 
+                    self.decent_token_addresses.contains(&pool.token0.address) != 
+                    self.decent_token_addresses.contains(&pool.token1.address)
+                {
+                    return;
+                }
+
+                pool.clone()
+            }
         };
 
         self.token_to_biggest_pool
