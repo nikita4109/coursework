@@ -115,6 +115,10 @@ impl PriceAgregator {
                     None => return Some(biggest_pool.clone()),
                 };
 
+                if pool.address == biggest_pool.address {
+                    return Some(pool.clone());
+                }
+
                 if self.decent_token_addresses.contains(&token.address)
                     && self.decent_token_addresses.contains(&pool.token0.address)
                         != self.decent_token_addresses.contains(&pool.token1.address)
