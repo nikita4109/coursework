@@ -9,12 +9,13 @@ pub struct Token {
     pub decimals: u64,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 pub struct TokenTick {
     pub block_number: u64,
     pub token_symbol: String,
     pub token_address: Address,
     pub price: f64,
+    pub price_through_100_blocks: f64,
     pub volume: f64,
     pub buys_count: u64,
     pub sells_count: u64,

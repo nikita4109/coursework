@@ -10,8 +10,9 @@ use csv::Reader;
 use csv::Writer;
 use ethabi::token;
 use serde::Serialize;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::io::{BufReader, Read};
+use std::ops::Bound::{Excluded, Unbounded};
 use std::path::Path;
 use std::{fs::File, io::BufRead};
 use types::{parse_event, Event};
@@ -256,93 +257,14 @@ impl LogsProcessor {
 
         println!("[Events handled]");
 
-        let mut agr_token_ticks = HashMap::new();
+        let mut tokens = Tokens::new();
         for swap in swaps {
-            if !agr_token_ticks.contains_key(&swap.token0_address) {
-                agr_token_ticks.insert(swap.token0_address, HashMap::new());
-            }
-
-            let agr_blocks = agr_token_ticks.get_mut(&swap.token0_address).unwrap();
-            if !agr_blocks.contains_key(&swap.block_number) {
-                agr_blocks.insert(
-                    swap.block_number,
-                    TokenTick {
-                        block_number: swap.block_number,
-                        token_symbol: swap.token0_symbol,
-                        token_address: swap.token0_address,
-                        price: swap.token0_usd_price,
-                        volume: 0.0,
-                        buys_count: 0,
-                        sells_count: 0,
-                        buys_usd: 0.0,
-                        sells_usd: 0.0,
-                    },
-                );
-            }
-
-            let token_tick = agr_blocks.get_mut(&swap.block_number).unwrap();
-            token_tick.price = swap.token0_usd_price;
-            token_tick.volume +=
-                swap.token0_usd_price * swap.amount0_in + swap.token1_usd_price * swap.amount1_in;
-
-            if swap.amount0_in != 0.0 {
-                token_tick.buys_count += 1;
-            }
-
-            if swap.amount0_out != 0.0 {
-                token_tick.sells_count += 1;
-            }
-
-            token_tick.buys_usd += swap.amount0_in * swap.token0_usd_price;
-            token_tick.sells_usd += swap.amount0_out * swap.token0_usd_price;
-
-            if !agr_token_ticks.contains_key(&swap.token1_address) {
-                agr_token_ticks.insert(swap.token1_address, HashMap::new());
-            }
-
-            let agr_blocks = agr_token_ticks.get_mut(&swap.token1_address).unwrap();
-            if !agr_blocks.contains_key(&swap.block_number) {
-                agr_blocks.insert(
-                    swap.block_number,
-                    TokenTick {
-                        block_number: swap.block_number,
-                        token_symbol: swap.token1_symbol,
-                        token_address: swap.token1_address,
-                        price: swap.token1_usd_price,
-                        volume: 0.0,
-                        buys_count: 0,
-                        sells_count: 0,
-                        buys_usd: 0.0,
-                        sells_usd: 0.0,
-                    },
-                );
-            }
-
-            let token_tick = agr_blocks.get_mut(&swap.block_number).unwrap();
-            token_tick.price = swap.token1_usd_price;
-            token_tick.volume +=
-                swap.token0_usd_price * swap.amount0_in + swap.token1_usd_price * swap.amount1_in;
-
-            if swap.amount1_in != 0.0 {
-                token_tick.buys_count += 1;
-            }
-
-            if swap.amount1_out != 0.0 {
-                token_tick.sells_count += 1;
-            }
-
-            token_tick.buys_usd += swap.amount1_in * swap.token1_usd_price;
-            token_tick.sells_usd += swap.amount1_out * swap.token1_usd_price;
+            tokens.handle_swap(swap);
         }
 
-        let mut token_ticks = Vec::new();
-        for (_, agr_blocks) in agr_token_ticks {
-            for (_, token_tick) in agr_blocks {
-                token_ticks.push(token_tick);
-            }
-        }
+        tokens.fill_through_100_blocks_price();
 
-        Self::write(&format!("{}/tokens.csv", dir), token_ticks);
+        Self::write(&format!("{}/tokens.csv", dir), tokens.to_vec());
     }
 
     fn write<T>(path: &str, records: Vec<T>)
@@ -388,4 +310,120 @@ pub fn normalize(amount: U256, decimals: u64) -> f64 {
 
 pub fn u256_to_f64(a: U256) -> f64 {
     a.to_string().parse().unwrap()
+}
+
+struct Tokens {
+    agr_token_ticks: HashMap<Address, BTreeMap<u64, TokenTick>>,
+}
+
+impl Tokens {
+    fn new() -> Self {
+        Self {
+            agr_token_ticks: HashMap::new(),
+        }
+    }
+
+    fn handle_swap(&mut self, swap: SwapTick) {
+        let volume =
+            swap.token0_usd_price * swap.amount0_in + swap.token1_usd_price * swap.amount1_in;
+
+        self.update(
+            swap.block_number,
+            &swap.token0_symbol,
+            swap.token0_address,
+            swap.token0_usd_price,
+            swap.amount0_in,
+            swap.amount0_out,
+            volume,
+        );
+
+        self.update(
+            swap.block_number,
+            &swap.token1_symbol,
+            swap.token1_address,
+            swap.token1_usd_price,
+            swap.amount1_in,
+            swap.amount1_out,
+            volume,
+        );
+    }
+
+    fn update(
+        &mut self,
+        block_number: u64,
+        token_symbol: &str,
+        token_address: Address,
+        price: f64,
+        amount_in: f64,
+        amount_out: f64,
+        volume: f64,
+    ) {
+        if !self.agr_token_ticks.contains_key(&token_address) {
+            self.agr_token_ticks.insert(token_address, BTreeMap::new());
+        }
+
+        let agr_blocks = self.agr_token_ticks.get_mut(&token_address).unwrap();
+        if !agr_blocks.contains_key(&block_number) {
+            agr_blocks.insert(
+                block_number,
+                TokenTick {
+                    block_number: block_number,
+                    token_symbol: token_symbol.to_owned(),
+                    token_address: token_address,
+                    price: price,
+                    price_through_100_blocks: 0.0,
+                    volume: 0.0,
+                    buys_count: 0,
+                    sells_count: 0,
+                    buys_usd: 0.0,
+                    sells_usd: 0.0,
+                },
+            );
+        }
+
+        let token_tick = agr_blocks.get_mut(&block_number).unwrap();
+        token_tick.price = price;
+        token_tick.volume += volume;
+
+        if amount_in != 0.0 {
+            token_tick.buys_count += 1;
+        }
+
+        if amount_out != 0.0 {
+            token_tick.sells_count += 1;
+        }
+
+        token_tick.buys_usd += amount_in * price;
+        token_tick.sells_usd += amount_out * price;
+    }
+
+    fn fill_through_100_blocks_price(&mut self) {
+        for (_, ticks) in self.agr_token_ticks.iter_mut() {
+            let mut prices = BTreeMap::new();
+            for (block_number, tick) in ticks.iter_mut().rev() {
+                prices.insert(block_number, tick.price);
+                while let Some((last_block_number, price)) = prices.last_key_value() {
+                    if block_number + 100 <= **last_block_number {
+                        tick.price_through_100_blocks = *price;
+                        break;
+                    }
+
+                    prices.pop_last();
+                }
+            }
+        }
+    }
+
+    fn to_vec(&self) -> Vec<TokenTick> {
+        let mut vticks = Vec::new();
+        for (_, ticks) in &self.agr_token_ticks {
+            for (_, tick) in ticks {
+                vticks.push(tick.clone());
+            }
+        }
+
+        vticks.sort_by_key(|x| x.block_number);
+
+        return vticks;
+    }
 }
