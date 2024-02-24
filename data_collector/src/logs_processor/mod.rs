@@ -411,10 +411,14 @@ impl Tokens {
                     }
 
                     println!(
-                        "[POP] {} {} {}",
-                        tick.token_symbol, tick.price, block_number
+                        "[POP] last: {} {} {} {}",
+                        tick.token_symbol, tick.price, block_number, **last_block_number,
                     );
                     prices.pop_last();
+                }
+
+                if tick.price_through_100_blocks == 0.0 {
+                    tick.price_through_100_blocks = tick.price;
                 }
             }
         }
