@@ -1,11 +1,6 @@
 use super::{normalize, types::SyncEvent};
 use crate::logs_processor::types::Token;
-use ethabi::token;
-use serde::de;
-use std::{
-    collections::{HashMap, HashSet},
-    ops::Add,
-};
+use std::collections::{HashMap, HashSet};
 use web3::types::{Address, U256};
 
 #[derive(Default, Clone)]

@@ -3,7 +3,7 @@ mod types;
 
 use self::types::{CEXData, SyncTick, Token};
 use self::types::{LiquidityTick, SwapTick};
-use crate::logs_processor::types::CEXRecord;
+use crate::logs_processor::types::{CEXRecord, TokenTick};
 use crate::pools_collector::PoolInfo;
 use crate::LogsProcessorArgs;
 use csv::Reader;
@@ -256,12 +256,93 @@ impl LogsProcessor {
 
         println!("[Events handled]");
 
-        Self::write(&format!("{}/reserves.csv", dir), reserves);
-        Self::write(&format!("{}/swaps.csv", dir), swaps);
-        Self::write(
-            &format!("{}/liquidity_providing.csv", dir),
-            liquidity_providing,
-        );
+        let mut agr_token_ticks = HashMap::new();
+        for swap in swaps {
+            if !agr_token_ticks.contains_key(&swap.token0_address) {
+                agr_token_ticks.insert(swap.token0_address, HashMap::new());
+            }
+
+            let agr_blocks = agr_token_ticks.get_mut(&swap.token0_address).unwrap();
+            if !agr_blocks.contains_key(&swap.block_number) {
+                agr_blocks.insert(
+                    swap.block_number,
+                    TokenTick {
+                        block_number: swap.block_number,
+                        token_symbol: swap.token0_symbol,
+                        token_address: swap.token0_address,
+                        price: swap.token0_usd_price,
+                        volume: 0.0,
+                        buys_count: 0,
+                        sells_count: 0,
+                        buys_usd: 0.0,
+                        sells_usd: 0.0,
+                    },
+                );
+            }
+
+            let token_tick = agr_blocks.get_mut(&swap.block_number).unwrap();
+            token_tick.price = swap.token0_usd_price;
+            token_tick.volume +=
+                swap.token0_usd_price * swap.amount0_in + swap.token1_usd_price * swap.amount1_in;
+
+            if swap.amount0_in != 0.0 {
+                token_tick.buys_count += 1;
+            }
+
+            if swap.amount0_out != 0.0 {
+                token_tick.sells_count += 1;
+            }
+
+            token_tick.buys_usd += swap.amount0_in * swap.token0_usd_price;
+            token_tick.sells_usd += swap.amount0_out * swap.token0_usd_price;
+
+            if !agr_token_ticks.contains_key(&swap.token1_address) {
+                agr_token_ticks.insert(swap.token1_address, HashMap::new());
+            }
+
+            let agr_blocks = agr_token_ticks.get_mut(&swap.token1_address).unwrap();
+            if !agr_blocks.contains_key(&swap.block_number) {
+                agr_blocks.insert(
+                    swap.block_number,
+                    TokenTick {
+                        block_number: swap.block_number,
+                        token_symbol: swap.token1_symbol,
+                        token_address: swap.token1_address,
+                        price: swap.token1_usd_price,
+                        volume: 0.0,
+                        buys_count: 0,
+                        sells_count: 0,
+                        buys_usd: 0.0,
+                        sells_usd: 0.0,
+                    },
+                );
+            }
+
+            let token_tick = agr_blocks.get_mut(&swap.block_number).unwrap();
+            token_tick.price = swap.token1_usd_price;
+            token_tick.volume +=
+                swap.token0_usd_price * swap.amount0_in + swap.token1_usd_price * swap.amount1_in;
+
+            if swap.amount1_in != 0.0 {
+                token_tick.buys_count += 1;
+            }
+
+            if swap.amount1_out != 0.0 {
+                token_tick.sells_count += 1;
+            }
+
+            token_tick.buys_usd += swap.amount1_in * swap.token1_usd_price;
+            token_tick.sells_usd += swap.amount1_out * swap.token1_usd_price;
+        }
+
+        let mut token_ticks = Vec::new();
+        for (_, agr_blocks) in agr_token_ticks {
+            for (_, token_tick) in agr_blocks {
+                token_ticks.push(token_tick);
+            }
+        }
+
+        Self::write(&format!("{}/tokens.csv", dir), token_ticks);
     }
 
     fn write<T>(path: &str, records: Vec<T>)

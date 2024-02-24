@@ -9,6 +9,19 @@ pub struct Token {
     pub decimals: u64,
 }
 
+#[derive(Serialize)]
+pub struct TokenTick {
+    pub block_number: u64,
+    pub token_symbol: String,
+    pub token_address: Address,
+    pub price: f64,
+    pub volume: f64,
+    pub buys_count: u64,
+    pub sells_count: u64,
+    pub buys_usd: f64,
+    pub sells_usd: f64,
+}
+
 #[derive(Debug, Serialize)]
 pub struct SyncTick {
     pub token0_symbol: String,
