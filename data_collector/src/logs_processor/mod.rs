@@ -416,10 +416,6 @@ impl Tokens {
                     );
                     prices.pop_last();
                 }
-
-                if tick.price_through_100_blocks == 0.0 {
-                    tick.price_through_100_blocks = tick.price;
-                }
             }
         }
     }
