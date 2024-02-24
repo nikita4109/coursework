@@ -263,6 +263,7 @@ impl LogsProcessor {
         }
 
         tokens.fill_through_100_blocks_price();
+        tokens.fill_100_blocks_window();
 
         Self::write(&format!("{}/tokens.csv", dir), tokens.to_vec());
     }
@@ -377,6 +378,11 @@ impl Tokens {
                     sells_count: 0,
                     buys_usd: 0.0,
                     sells_usd: 0.0,
+                    volume_last_100_blocks: 0.0,
+                    buys_count_last_100_blocks: 0,
+                    sells_count_last_100_blocks: 0,
+                    buys_usd_last_100_blocks: 0.0,
+                    sells_usd_last_100_blocks: 0.0,
                 },
             );
         }
@@ -404,18 +410,54 @@ impl Tokens {
                 prices.insert(block_number, tick.price);
                 while let Some((last_block_number, price)) = prices.last_key_value() {
                     if block_number + 100 >= **last_block_number {
-                        println!("[SET] {} {} {}", tick.token_symbol, *price, block_number);
-
                         tick.price_through_100_blocks = *price;
                         break;
                     }
 
-                    println!(
-                        "[POP] {} {} {} {}",
-                        tick.token_symbol, tick.price, block_number, **last_block_number,
-                    );
                     prices.pop_last();
                 }
+            }
+        }
+    }
+
+    fn fill_100_blocks_window(&mut self) {
+        for (_, ticks) in self.agr_token_ticks.iter_mut() {
+            let mut volume_last_100_blocks = 0.0;
+            let mut buys_count_last_100_blocks = 0;
+            let mut sells_count_last_100_blocks = 0;
+            let mut buys_usd_last_100_blocks = 0.0;
+            let mut sells_usd_last_100_blocks = 0.0;
+
+            let mut window = BTreeMap::new();
+
+            for (block_number, tick) in ticks.iter_mut() {
+                window.insert(block_number, tick.clone());
+
+                volume_last_100_blocks += tick.volume;
+                buys_count_last_100_blocks += tick.buys_count;
+                sells_count_last_100_blocks += tick.sells_count;
+                buys_usd_last_100_blocks += tick.buys_usd;
+                sells_usd_last_100_blocks += tick.sells_usd;
+
+                while let Some((first_block_number, first_tick)) = window.first_key_value() {
+                    if block_number - **first_block_number <= 100 {
+                        break;
+                    }
+
+                    volume_last_100_blocks -= first_tick.volume;
+                    buys_count_last_100_blocks -= first_tick.buys_count;
+                    sells_count_last_100_blocks -= first_tick.sells_count;
+                    buys_usd_last_100_blocks -= first_tick.buys_usd;
+                    sells_usd_last_100_blocks -= first_tick.sells_usd;
+
+                    window.pop_first();
+                }
+
+                tick.volume_last_100_blocks = volume_last_100_blocks;
+                tick.buys_count_last_100_blocks = buys_count_last_100_blocks;
+                tick.sells_count_last_100_blocks = sells_count_last_100_blocks;
+                tick.buys_usd_last_100_blocks = buys_usd_last_100_blocks;
+                tick.sells_usd_last_100_blocks = sells_usd_last_100_blocks;
             }
         }
     }

@@ -21,6 +21,11 @@ pub struct TokenTick {
     pub sells_count: u64,
     pub buys_usd: f64,
     pub sells_usd: f64,
+    pub volume_last_100_blocks: f64,
+    pub buys_count_last_100_blocks: u64,
+    pub sells_count_last_100_blocks: u64,
+    pub buys_usd_last_100_blocks: f64,
+    pub sells_usd_last_100_blocks: f64,
 }
 
 #[derive(Debug, Serialize)]
