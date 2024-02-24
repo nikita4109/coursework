@@ -404,10 +404,16 @@ impl Tokens {
                 prices.insert(block_number, tick.price);
                 while let Some((last_block_number, price)) = prices.last_key_value() {
                     if block_number + 100 <= **last_block_number {
+                        println!("[SET] {} {} {}", tick.token_symbol, *price, block_number);
+
                         tick.price_through_100_blocks = *price;
                         break;
                     }
 
+                    println!(
+                        "[POP] {} {} {}",
+                        tick.token_symbol, tick.price, block_number
+                    );
                     prices.pop_last();
                 }
             }

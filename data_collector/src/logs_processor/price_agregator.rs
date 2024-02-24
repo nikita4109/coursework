@@ -88,18 +88,6 @@ impl PriceAgregator {
         };
 
         self.tokens_prices.insert(token.address, usd_price);
-
-        if token.symbol == "WETH" {
-            println!(
-                "{} {} {:?} {:?} {:?} {:.5}",
-                event.block_number,
-                token.symbol,
-                best_pool.address,
-                best_pool.reserve0,
-                best_pool.reserve1,
-                usd_price
-            );
-        }
     }
 
     fn find_best_pool(&mut self, token: &Token, pool: Option<Pool>) -> Option<Pool> {
