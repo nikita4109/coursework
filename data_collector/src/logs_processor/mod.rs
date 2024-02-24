@@ -15,6 +15,7 @@ use std::io::{BufReader, Read};
 use std::ops::Bound::{Excluded, Unbounded};
 use std::path::Path;
 use std::{fs::File, io::BufRead};
+use ta::{indicators::ExponentialMovingAverage, Next};
 use types::{parse_event, Event};
 use web3::contract::Contract;
 use web3::contract::Options;
@@ -378,11 +379,15 @@ impl Tokens {
                     sells_count: 0,
                     buys_usd: 0.0,
                     sells_usd: 0.0,
-                    volume_last_100_blocks: 0.0,
-                    buys_count_last_100_blocks: 0,
-                    sells_count_last_100_blocks: 0,
-                    buys_usd_last_100_blocks: 0.0,
-                    sells_usd_last_100_blocks: 0.0,
+                    volume_window: 0.0,
+                    buys_count_window: 0,
+                    sells_count_window: 0,
+                    buys_usd_window: 0.0,
+                    sells_usd_window: 0.0,
+                    high_price: 0.0,
+                    low_price: 0.0,
+                    macd: 0.0,
+                    signal_line: 0.0,
                 },
             );
         }
@@ -422,42 +427,56 @@ impl Tokens {
 
     fn fill_100_blocks_window(&mut self) {
         for (_, ticks) in self.agr_token_ticks.iter_mut() {
-            let mut volume_last_100_blocks = 0.0;
-            let mut buys_count_last_100_blocks = 0;
-            let mut sells_count_last_100_blocks = 0;
-            let mut buys_usd_last_100_blocks = 0.0;
-            let mut sells_usd_last_100_blocks = 0.0;
+            let mut volume_window = 0.0;
+            let mut buys_count_window = 0;
+            let mut sells_count_window = 0;
+            let mut buys_usd_window = 0.0;
+            let mut sells_usd_window = 0.0;
 
             let mut window = BTreeMap::new();
 
             for (block_number, tick) in ticks.iter_mut() {
                 window.insert(block_number, tick.clone());
 
-                volume_last_100_blocks += tick.volume;
-                buys_count_last_100_blocks += tick.buys_count;
-                sells_count_last_100_blocks += tick.sells_count;
-                buys_usd_last_100_blocks += tick.buys_usd;
-                sells_usd_last_100_blocks += tick.sells_usd;
+                volume_window += tick.volume;
+                buys_count_window += tick.buys_count;
+                sells_count_window += tick.sells_count;
+                buys_usd_window += tick.buys_usd;
+                sells_usd_window += tick.sells_usd;
 
                 while let Some((first_block_number, first_tick)) = window.first_key_value() {
                     if block_number - **first_block_number <= 100 {
                         break;
                     }
 
-                    volume_last_100_blocks -= first_tick.volume;
-                    buys_count_last_100_blocks -= first_tick.buys_count;
-                    sells_count_last_100_blocks -= first_tick.sells_count;
-                    buys_usd_last_100_blocks -= first_tick.buys_usd;
-                    sells_usd_last_100_blocks -= first_tick.sells_usd;
+                    volume_window -= first_tick.volume;
+                    buys_count_window -= first_tick.buys_count;
+                    sells_count_window -= first_tick.sells_count;
+                    buys_usd_window -= first_tick.buys_usd;
+                    sells_usd_window -= first_tick.sells_usd;
 
                     window.pop_first();
                 }
 
-                tick.volume_last_100_blocks = volume_last_100_blocks;
-                tick.buys_count_last_100_blocks = buys_count_last_100_blocks;
-                tick.sells_count_last_100_blocks = sells_count_last_100_blocks;
-                tick.buys_usd_last_100_blocks = buys_usd_last_100_blocks;
-                tick.sells_usd_last_100_blocks = sells_usd_last_100_blocks;
+                tick.volume_window = volume_window;
+                tick.buys_count_window = buys_count_window;
+                tick.sells_count_window = sells_count_window;
+                tick.buys_usd_window = buys_usd_window;
+                tick.sells_usd_window = sells_usd_window;
+
+                let mut prices = Vec::new();
+                let mut min_price: f64 = i32::MAX as f64;
+                let mut max_price: f64 = i32::MIN as f64;
+                for (_, tick) in &window {
+                    min_price = f64::min(min_price, tick.price);
+                    max_price = f64::max(max_price, tick.price);
+
+                    prices.push(tick.price);
+                }
+
+                tick.low_price = min_price;
+                tick.high_price = max_price;
+                (tick.macd, tick.signal_line) = macd(prices);
             }
         }
     }
@@ -474,4 +493,29 @@ impl Tokens {
 
         return vticks;
     }
+}
+
+fn macd(prices: Vec<f64>) -> (f64, f64) {
+    let mut ema12 = ExponentialMovingAverage::new(12).unwrap();
+    let mut ema26 = ExponentialMovingAverage::new(26).unwrap();
+
+    let ema12_values: Vec<f64> = prices.iter().map(|&price| ema12.next(price)).collect();
+    let ema26_values: Vec<f64> = prices.iter().map(|&price| ema26.next(price)).collect();
+
+    let macd_values: Vec<f64> = ema12_values
+        .iter()
+        .zip(ema26_values.iter())
+        .map(|(&ema12, &ema26)| ema12 - ema26)
+        .collect();
+
+    let mut signal_line_ema = ExponentialMovingAverage::new(9).unwrap();
+    let signal_line_values: Vec<f64> = macd_values
+        .iter()
+        .map(|&macd| signal_line_ema.next(macd))
+        .collect();
+
+    let todays_macd = *macd_values.last().unwrap();
+    let todays_signal_line = *signal_line_values.last().unwrap();
+
+    return (todays_macd, todays_signal_line);
 }
