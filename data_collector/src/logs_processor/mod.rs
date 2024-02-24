@@ -263,8 +263,8 @@ impl LogsProcessor {
             tokens.handle_swap(swap);
         }
 
-        tokens.fill_through_100_blocks_price();
-        tokens.fill_100_blocks_window();
+        tokens.fill_through_window_blocks_price(300);
+        tokens.fill_window(300);
 
         Self::write(&format!("{}/tokens.csv", dir), tokens.to_vec());
     }
@@ -408,13 +408,13 @@ impl Tokens {
         token_tick.sells_usd += amount_out * price;
     }
 
-    fn fill_through_100_blocks_price(&mut self) {
+    fn fill_through_window_blocks_price(&mut self, blocks_window_len: u64) {
         for (_, ticks) in self.agr_token_ticks.iter_mut() {
             let mut prices = BTreeMap::new();
             for (block_number, tick) in ticks.iter_mut().rev() {
                 prices.insert(block_number, tick.price);
                 while let Some((last_block_number, price)) = prices.last_key_value() {
-                    if block_number + 100 >= **last_block_number {
+                    if block_number + blocks_window_len >= **last_block_number {
                         tick.price_through_100_blocks = *price;
                         break;
                     }
@@ -425,7 +425,7 @@ impl Tokens {
         }
     }
 
-    fn fill_100_blocks_window(&mut self) {
+    fn fill_window(&mut self, blocks_window_len: u64) {
         for (_, ticks) in self.agr_token_ticks.iter_mut() {
             let mut volume_window = 0.0;
             let mut buys_count_window = 0;
@@ -445,7 +445,7 @@ impl Tokens {
                 sells_usd_window += tick.sells_usd;
 
                 while let Some((first_block_number, first_tick)) = window.first_key_value() {
-                    if block_number - **first_block_number <= 100 {
+                    if block_number - **first_block_number <= blocks_window_len {
                         break;
                     }
 
