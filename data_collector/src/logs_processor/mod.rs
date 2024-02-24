@@ -373,7 +373,7 @@ impl Tokens {
                     token_symbol: token_symbol.to_owned(),
                     token_address: token_address,
                     price: price,
-                    price_through_100_blocks: 0.0,
+                    price_through_window: 0.0,
                     volume: 0.0,
                     buys_count: 0,
                     sells_count: 0,
@@ -415,7 +415,7 @@ impl Tokens {
                 prices.insert(block_number, tick.price);
                 while let Some((last_block_number, price)) = prices.last_key_value() {
                     if block_number + blocks_window_len >= **last_block_number {
-                        tick.price_through_100_blocks = *price;
+                        tick.price_through_window = *price;
                         break;
                     }
 

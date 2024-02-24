@@ -15,7 +15,7 @@ pub struct TokenTick {
     pub token_symbol: String,
     pub token_address: Address,
     pub price: f64,
-    pub price_through_100_blocks: f64,
+    pub price_through_window: f64,
     pub volume: f64,
     pub buys_count: u64,
     pub sells_count: u64,
