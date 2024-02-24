@@ -403,7 +403,7 @@ impl Tokens {
             for (block_number, tick) in ticks.iter_mut().rev() {
                 prices.insert(block_number, tick.price);
                 while let Some((last_block_number, price)) = prices.last_key_value() {
-                    if block_number + 100 <= **last_block_number {
+                    if block_number + 100 >= **last_block_number {
                         println!("[SET] {} {} {}", tick.token_symbol, *price, block_number);
 
                         tick.price_through_100_blocks = *price;
@@ -411,7 +411,7 @@ impl Tokens {
                     }
 
                     println!(
-                        "[POP] last: {} {} {} {}",
+                        "[POP] {} {} {} {}",
                         tick.token_symbol, tick.price, block_number, **last_block_number,
                     );
                     prices.pop_last();
