@@ -180,8 +180,6 @@ impl Tokens {
     }
 
     pub fn build_candlesticks(&mut self) {
-        let mut candlesticks = Vec::new();
-
         for (_, ticks) in &self.agr_token_ticks {
             let mut window = Vec::new();
 
@@ -193,7 +191,7 @@ impl Tokens {
                         || block_number - first_tick.block_number >= self.candlestick_len
                     {
                         let candlestick = self.build_candlestick(window.clone());
-                        candlesticks.push(candlestick);
+                        self.candlesticks.push(candlestick);
                         window.clear();
                         continue;
                     }
@@ -202,7 +200,7 @@ impl Tokens {
 
             if window.len() > 0 {
                 let candlestick = self.build_candlestick(window.clone());
-                candlesticks.push(candlestick);
+                self.candlesticks.push(candlestick);
             }
         }
     }
