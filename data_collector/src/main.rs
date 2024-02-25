@@ -58,6 +58,12 @@ struct LogsProcessorArgs {
 #[derive(Parser)]
 struct RawCSVsProcessorArgs {
     #[arg(short, long)]
+    blocks_window_len: u64,
+
+    #[arg(short, long)]
+    candlestick_len: u64,
+
+    #[arg(short, long)]
     swaps_path: String,
 
     #[arg(short, long)]
@@ -111,8 +117,8 @@ async fn main() {
         }
 
         Commands::RawCSVProcessor(args) => {
-            let processor = raw_csv_processor::RawCSVProcessor::new();
-            processor.write_tokens_csv(&args.swaps_path, &args.output_dir);
+            let processor = raw_csv_processor::RawCSVProcessor::new(args);
+            processor.write_tokens_csv();
         }
 
         Commands::PoolsCollector(args) => {
