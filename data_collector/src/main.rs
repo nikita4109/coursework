@@ -4,6 +4,8 @@ mod blocks_collector;
 mod logs_collector;
 mod logs_processor;
 mod pools_collector;
+mod raw_csv_processor;
+mod utils;
 
 #[derive(Parser)]
 struct Cli {
@@ -15,6 +17,7 @@ struct Cli {
 enum Commands {
     LogsCollector(LogsCollectorArgs),
     LogsProcessor(LogsProcessorArgs),
+    RawCSVProcessor(RawCSVsProcessorArgs),
     PoolsCollector(PoolsCollectorArgs),
     BlocksCollector(BlocksCollectorArgs),
 }
@@ -47,6 +50,15 @@ struct LogsProcessorArgs {
 
     #[arg(short, long)]
     pools_path: String,
+
+    #[arg(short, long)]
+    output_dir: String,
+}
+
+#[derive(Parser)]
+struct RawCSVsProcessorArgs {
+    #[arg(short, long)]
+    swaps_path: String,
 
     #[arg(short, long)]
     output_dir: String,
@@ -95,7 +107,12 @@ async fn main() {
         Commands::LogsProcessor(args) => {
             let output_dir = args.output_dir.clone();
             let processor = logs_processor::LogsProcessor::new(args);
-            processor.write_csv(&output_dir).await;
+            processor.write_raw_csvs(&output_dir).await;
+        }
+
+        Commands::RawCSVProcessor(args) => {
+            let processor = raw_csv_processor::RawCSVProcessor::new();
+            processor.write_tokens_csv(&args.swaps_path, &args.output_dir);
         }
 
         Commands::PoolsCollector(args) => {

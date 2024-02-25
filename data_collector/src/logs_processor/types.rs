@@ -9,29 +9,6 @@ pub struct Token {
     pub decimals: u64,
 }
 
-#[derive(Serialize, Clone)]
-pub struct TokenTick {
-    pub block_number: u64,
-    pub token_symbol: String,
-    pub token_address: Address,
-    pub price: f64,
-    pub price_through_window: f64,
-    pub volume: f64,
-    pub buys_count: u64,
-    pub sells_count: u64,
-    pub buys_usd: f64,
-    pub sells_usd: f64,
-    pub volume_window: f64,
-    pub buys_count_window: u64,
-    pub sells_count_window: u64,
-    pub buys_usd_window: f64,
-    pub sells_usd_window: f64,
-    pub high_price: f64,
-    pub low_price: f64,
-    pub macd: f64,
-    pub signal_line: f64,
-}
-
 #[derive(Debug, Serialize)]
 pub struct SyncTick {
     pub token0_symbol: String,
@@ -46,7 +23,7 @@ pub struct SyncTick {
     pub token1_usd_price: f64,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct SwapTick {
     pub token0_symbol: String,
     pub token1_symbol: String,
