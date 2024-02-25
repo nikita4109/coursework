@@ -208,8 +208,12 @@ impl Tokens {
 
     fn build_candlestick(&self, window: Vec<TokenTick>) -> Candlestick {
         let mut candlestick = Candlestick {
-            open_block_number: window[0].block_number,
-            close_block_number: window.last().unwrap().block_number,
+            open_block_number: window[0].block_number
+                - window[0].block_number % self.candlestick_len,
+            close_block_number: window[0].block_number
+                - window[0].block_number % self.candlestick_len
+                + self.candlestick_len
+                - 1,
             token_symbol: window[0].token_symbol.clone(),
             token_address: window[0].token_address,
             open_price: window[0].price,
