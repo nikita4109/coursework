@@ -299,14 +299,22 @@ impl Window {
 
     fn fill(&self, candle: &mut Candlestick) {
         let mut price_changes = Vec::new();
+        let mut avg_price = 0.0;
         for candle in &self.deque {
             price_changes.push(candle.close_price / candle.open_price);
+            avg_price += candle.open_price;
+        }
+
+        if let Some(last) = self.deque.back() {
+            avg_price += last.close_price;
+            avg_price = avg_price / (self.deque.len() + 1) as f64;
         }
 
         candle.std_price_change_window = match std_deviation(&price_changes) {
             Some(r) => r,
             None => 0.0,
         };
+        candle.avg_price_change_window = avg_price;
 
         candle.volume_window = self.volume_window;
         candle.buys_count_window = self.buys_count_window;
