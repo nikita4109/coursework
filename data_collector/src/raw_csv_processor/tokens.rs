@@ -104,6 +104,7 @@ impl Tokens {
             let start_idx = self.candlesticks.len();
 
             let mut window = Window::new(self.blocks_window_len * self.blocks_window_len);
+            let mut big_window = BigWindow::new(300 * 24);
 
             for (block_number, tick) in ticks {
                 if let Some(first_tick) = bucket.first() {
@@ -116,6 +117,9 @@ impl Tokens {
                         window.fill(&mut candlestick);
                         window.add(candlestick.clone());
 
+                        big_window.fill(&mut candlestick);
+                        big_window.add(candlestick.clone());
+
                         self.candlesticks.push(candlestick);
                         bucket.clear();
                     }
@@ -127,6 +131,8 @@ impl Tokens {
             if bucket.len() == 0 {
                 let mut candlestick = self.build_candlestick(bucket.clone());
                 window.fill(&mut candlestick);
+                big_window.fill(&mut candlestick);
+
                 self.candlesticks.push(candlestick);
             }
 
@@ -173,6 +179,62 @@ impl Tokens {
         candlesticks.sort_by_key(|x| x.open_block_number);
 
         return candlesticks;
+    }
+}
+
+struct BigWindow {
+    blocks_in_window: u64,
+    deque: VecDeque<Candlestick>,
+
+    volume_window: f64,
+    buys_count_window: u64,
+    sells_count_window: u64,
+    buys_usd_window: f64,
+    sells_usd_window: f64,
+}
+
+impl BigWindow {
+    fn new(blocks_in_window: u64) -> Self {
+        Self {
+            blocks_in_window: blocks_in_window,
+            deque: VecDeque::new(),
+
+            volume_window: 0.0,
+            buys_count_window: 0,
+            sells_count_window: 0,
+            buys_usd_window: 0.0,
+            sells_usd_window: 0.0,
+        }
+    }
+
+    fn add(&mut self, candle: Candlestick) {
+        while !self.deque.is_empty()
+            && candle.open_block_number - self.deque[0].open_block_number > self.blocks_in_window
+        {
+            self.volume_window -= self.deque[0].volume;
+            self.buys_count_window -= self.deque[0].buys_count;
+            self.sells_count_window -= self.deque[0].sells_count;
+            self.buys_usd_window -= self.deque[0].buys_usd;
+            self.sells_usd_window -= self.deque[0].sells_usd;
+
+            self.deque.pop_front();
+        }
+
+        self.volume_window += candle.volume;
+        self.buys_count_window += candle.buys_count;
+        self.sells_count_window += candle.sells_count;
+        self.buys_usd_window += candle.buys_usd;
+        self.sells_usd_window += candle.sells_usd;
+
+        self.deque.push_back(candle.clone());
+    }
+
+    fn fill(&self, candle: &mut Candlestick) {
+        candle.volume_day = self.volume_window;
+        candle.buys_count_day = self.buys_count_window;
+        candle.sells_count_day = self.sells_count_window;
+        candle.buys_usd_day = self.buys_usd_window;
+        candle.sells_usd_day = self.sells_usd_window;
     }
 }
 

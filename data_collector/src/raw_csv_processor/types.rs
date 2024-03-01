@@ -21,7 +21,7 @@ pub struct Candlestick {
     pub close_block_number: u64,
     pub token_symbol: String,
     pub token_address: Address,
-    
+
     pub open_price: f64,
     pub close_price: f64,
     pub high_price: f64,
@@ -44,7 +44,7 @@ pub struct Candlestick {
 
     pub buys_count_day: u64,
     pub sells_count_day: u64,
-    pub buy_usd_day: f64,
-    pub sell_usd_day: f64,
+    pub buys_usd_day: f64,
+    pub sells_usd_day: f64,
     pub volume_day: f64,
 }
