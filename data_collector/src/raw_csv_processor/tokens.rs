@@ -107,10 +107,9 @@ impl Tokens {
 
             for (block_number, tick) in ticks {
                 if let Some(first_tick) = bucket.first() {
-                    if (block_number % self.candlestick_len
+                    if block_number % self.candlestick_len
                         <= first_tick.block_number % self.candlestick_len
-                        || block_number - first_tick.block_number >= self.candlestick_len)
-                        && !bucket.is_empty()
+                        || block_number - first_tick.block_number >= self.candlestick_len
                     {
                         let mut candlestick = self.build_candlestick(bucket.clone());
 
@@ -152,12 +151,18 @@ impl Tokens {
             ..Default::default()
         };
 
+        candlestick.high_price = i32::MIN as f64;
+        candlestick.low_price = i32::MAX as f64;
+
         for tick in bucket {
             candlestick.volume += tick.volume;
             candlestick.buys_count += tick.buys_count;
             candlestick.sells_count += tick.sells_count;
             candlestick.buys_usd += tick.buys_usd;
             candlestick.sells_usd += tick.sells_usd;
+
+            candlestick.high_price = f64::max(candlestick.high_price, tick.price);
+            candlestick.low_price = f64::min(candlestick.low_price, tick.price);
         }
 
         return candlestick;
@@ -201,8 +206,6 @@ impl Window {
     }
 
     fn add(&mut self, candle: Candlestick) {
-        self.deque.push_back(candle.clone());
-
         while !self.deque.is_empty()
             && candle.open_block_number - self.deque[0].open_block_number > self.blocks_in_window
         {
@@ -214,6 +217,14 @@ impl Window {
 
             self.deque.pop_front();
         }
+
+        self.volume_window += candle.volume;
+        self.buys_count_window += candle.buys_count;
+        self.sells_count_window += candle.sells_count;
+        self.buys_usd_window += candle.buys_usd;
+        self.sells_usd_window += candle.sells_usd;
+
+        self.deque.push_back(candle.clone());
 
         self.high_price_window = i32::MIN as f64;
         self.low_price_window = i32::MAX as f64;
