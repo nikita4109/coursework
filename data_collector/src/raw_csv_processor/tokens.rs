@@ -107,9 +107,10 @@ impl Tokens {
 
             for (block_number, tick) in ticks {
                 if let Some(first_tick) = bucket.first() {
-                    if block_number % self.candlestick_len
+                    if (block_number % self.candlestick_len
                         <= first_tick.block_number % self.candlestick_len
-                        || block_number - first_tick.block_number >= self.candlestick_len
+                        || block_number - first_tick.block_number >= self.candlestick_len)
+                        && !bucket.is_empty()
                     {
                         let mut candlestick = self.build_candlestick(bucket.clone());
 
@@ -118,7 +119,6 @@ impl Tokens {
 
                         self.candlesticks.push(candlestick);
                         bucket.clear();
-                        continue;
                     }
                 }
 
