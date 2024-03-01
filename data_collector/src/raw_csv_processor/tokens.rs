@@ -103,7 +103,7 @@ impl Tokens {
             let mut bucket: Vec<TokenTick> = Vec::new();
             let start_idx = self.candlesticks.len();
 
-            let mut window = Window::new(self.blocks_window_len * self.blocks_window_len);
+            let mut window = Window::new(self.blocks_window_len);
             let mut big_window = BigWindow::new(300 * 24);
 
             for (block_number, tick) in ticks {
