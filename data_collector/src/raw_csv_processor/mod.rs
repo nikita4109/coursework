@@ -28,8 +28,6 @@ impl RawCSVProcessor {
             tokens.handle_swap(swap);
         }
 
-        tokens.fill_through_window_blocks_price();
-        tokens.fill_window();
         tokens.build_candlesticks();
 
         utils::write(

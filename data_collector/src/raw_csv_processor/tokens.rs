@@ -3,6 +3,7 @@ use super::types::TokenTick;
 use crate::logs_processor::types::SwapTick;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
+use std::collections::VecDeque;
 use ta::{indicators::ExponentialMovingAverage, Next};
 use web3::types::Address;
 
@@ -77,15 +78,6 @@ impl Tokens {
                     sells_count: 0,
                     buys_usd: 0.0,
                     sells_usd: 0.0,
-                    volume_window: 0.0,
-                    buys_count_window: 0,
-                    sells_count_window: 0,
-                    buys_usd_window: 0.0,
-                    sells_usd_window: 0.0,
-                    high_price: 0.0,
-                    low_price: 0.0,
-                    macd: 0.0,
-                    signal_line: 0.0,
                 },
             );
         }
@@ -106,132 +98,61 @@ impl Tokens {
         token_tick.sells_usd += amount_out * price;
     }
 
-    pub fn fill_through_window_blocks_price(&mut self) {
-        for (_, ticks) in self.agr_token_ticks.iter_mut() {
-            let mut prices = BTreeMap::new();
-            for (block_number, tick) in ticks.iter_mut().rev() {
-                prices.insert(block_number, tick.price);
-                while let Some((last_block_number, price)) = prices.last_key_value() {
-                    if block_number + self.blocks_window_len >= **last_block_number {
-                        tick.price_through_window = *price;
-                        break;
-                    }
-
-                    prices.pop_last();
-                }
-            }
-        }
-    }
-
-    pub fn fill_window(&mut self) {
-        for (_, ticks) in self.agr_token_ticks.iter_mut() {
-            let mut volume_window = 0.0;
-            let mut buys_count_window = 0;
-            let mut sells_count_window = 0;
-            let mut buys_usd_window = 0.0;
-            let mut sells_usd_window = 0.0;
-
-            let mut window = BTreeMap::new();
-
-            for (block_number, tick) in ticks.iter_mut() {
-                window.insert(block_number, tick.clone());
-
-                volume_window += tick.volume;
-                buys_count_window += tick.buys_count;
-                sells_count_window += tick.sells_count;
-                buys_usd_window += tick.buys_usd;
-                sells_usd_window += tick.sells_usd;
-
-                while let Some((first_block_number, first_tick)) = window.first_key_value() {
-                    if block_number - **first_block_number <= self.blocks_window_len {
-                        break;
-                    }
-
-                    volume_window -= first_tick.volume;
-                    buys_count_window -= first_tick.buys_count;
-                    sells_count_window -= first_tick.sells_count;
-                    buys_usd_window -= first_tick.buys_usd;
-                    sells_usd_window -= first_tick.sells_usd;
-
-                    window.pop_first();
-                }
-
-                tick.volume_window = volume_window;
-                tick.buys_count_window = buys_count_window;
-                tick.sells_count_window = sells_count_window;
-                tick.buys_usd_window = buys_usd_window;
-                tick.sells_usd_window = sells_usd_window;
-
-                let mut prices = Vec::new();
-                let mut min_price: f64 = i32::MAX as f64;
-                let mut max_price: f64 = i32::MIN as f64;
-                for (_, tick) in &window {
-                    min_price = f64::min(min_price, tick.price);
-                    max_price = f64::max(max_price, tick.price);
-
-                    prices.push(tick.price);
-                }
-
-                tick.low_price = min_price;
-                tick.high_price = max_price;
-                (tick.macd, tick.signal_line) = macd(prices);
-            }
-        }
-    }
-
     pub fn build_candlesticks(&mut self) {
         for (_, ticks) in &self.agr_token_ticks {
-            let mut window: Vec<TokenTick> = Vec::new();
+            let mut bucket: Vec<TokenTick> = Vec::new();
+            let start_idx = self.candlesticks.len();
+
+            let mut window = Window::new(self.blocks_window_len * self.blocks_window_len);
 
             for (block_number, tick) in ticks {
-                if let Some(first_tick) = window.first() {
+                if let Some(first_tick) = bucket.first() {
                     if block_number % self.candlestick_len
                         <= first_tick.block_number % self.candlestick_len
                         || block_number - first_tick.block_number >= self.candlestick_len
                     {
-                        let candlestick = self.build_candlestick(window.clone());
+                        let mut candlestick = self.build_candlestick(bucket.clone());
+
+                        window.fill(&mut candlestick);
+                        window.add(candlestick.clone());
+
                         self.candlesticks.push(candlestick);
-                        window.clear();
+                        bucket.clear();
                         continue;
                     }
                 }
 
-                window.push(tick.clone());
+                bucket.push(tick.clone());
             }
 
-            if window.len() > 0 {
-                let candlestick = self.build_candlestick(window.clone());
+            if bucket.len() == 0 {
+                let mut candlestick = self.build_candlestick(bucket.clone());
+                window.fill(&mut candlestick);
                 self.candlesticks.push(candlestick);
+            }
+
+            for i in start_idx + 1..self.candlesticks.len() {
+                self.candlesticks[i - 1].target_price = self.candlesticks[i].close_price;
             }
         }
     }
 
-    fn build_candlestick(&self, window: Vec<TokenTick>) -> Candlestick {
+    fn build_candlestick(&self, bucket: Vec<TokenTick>) -> Candlestick {
         let mut candlestick = Candlestick {
-            open_block_number: window[0].block_number
-                - window[0].block_number % self.candlestick_len,
-            close_block_number: window[0].block_number
-                - window[0].block_number % self.candlestick_len
+            open_block_number: bucket[0].block_number
+                - bucket[0].block_number % self.candlestick_len,
+            close_block_number: bucket[0].block_number
+                - bucket[0].block_number % self.candlestick_len
                 + self.candlestick_len
                 - 1,
-            token_symbol: window[0].token_symbol.clone(),
-            token_address: window[0].token_address,
-            open_price: window[0].price,
-            close_price: window.last().unwrap().price,
-            price_through_window: window[0].price_through_window,
-            volume_window: window[0].volume_window,
-            buys_count_window: window[0].buys_count_window,
-            sells_count_window: window[0].sells_count_window,
-            buys_usd_window: window[0].buys_usd_window,
-            sells_usd_window: window[0].sells_usd_window,
-            high_price: window[0].high_price,
-            low_price: window[0].low_price,
-            macd: window[0].macd,
-            signal_line: window[0].signal_line,
+            token_symbol: bucket[0].token_symbol.clone(),
+            token_address: bucket[0].token_address,
+            open_price: bucket[0].price,
+            close_price: bucket.last().unwrap().price,
             ..Default::default()
         };
 
-        for tick in window {
+        for tick in bucket {
             candlestick.volume += tick.volume;
             candlestick.buys_count += tick.buys_count;
             candlestick.sells_count += tick.sells_count;
@@ -250,27 +171,105 @@ impl Tokens {
     }
 }
 
-fn macd(prices: Vec<f64>) -> (f64, f64) {
-    let mut ema12 = ExponentialMovingAverage::new(12).unwrap();
-    let mut ema26 = ExponentialMovingAverage::new(26).unwrap();
+struct Window {
+    blocks_in_window: u64,
+    deque: VecDeque<Candlestick>,
 
-    let ema12_values: Vec<f64> = prices.iter().map(|&price| ema12.next(price)).collect();
-    let ema26_values: Vec<f64> = prices.iter().map(|&price| ema26.next(price)).collect();
+    volume_window: f64,
+    buys_count_window: u64,
+    sells_count_window: u64,
+    buys_usd_window: f64,
+    sells_usd_window: f64,
+    high_price_window: f64,
+    low_price_window: f64,
+}
 
-    let macd_values: Vec<f64> = ema12_values
-        .iter()
-        .zip(ema26_values.iter())
-        .map(|(&ema12, &ema26)| ema12 - ema26)
-        .collect();
+impl Window {
+    fn new(blocks_in_window: u64) -> Self {
+        Self {
+            blocks_in_window: blocks_in_window,
+            deque: VecDeque::new(),
 
-    let mut signal_line_ema = ExponentialMovingAverage::new(9).unwrap();
-    let signal_line_values: Vec<f64> = macd_values
-        .iter()
-        .map(|&macd| signal_line_ema.next(macd))
-        .collect();
+            volume_window: 0.0,
+            buys_count_window: 0,
+            sells_count_window: 0,
+            buys_usd_window: 0.0,
+            sells_usd_window: 0.0,
+            high_price_window: 0.0,
+            low_price_window: 0.0,
+        }
+    }
 
-    let todays_macd = *macd_values.last().unwrap();
-    let todays_signal_line = *signal_line_values.last().unwrap();
+    fn add(&mut self, candle: Candlestick) {
+        self.deque.push_back(candle.clone());
 
-    return (todays_macd, todays_signal_line);
+        while !self.deque.is_empty()
+            && candle.open_block_number - self.deque[0].open_block_number > self.blocks_in_window
+        {
+            self.volume_window -= self.deque[0].volume;
+            self.buys_count_window -= self.deque[0].buys_count;
+            self.sells_count_window -= self.deque[0].sells_count;
+            self.buys_usd_window -= self.deque[0].buys_usd;
+            self.sells_usd_window -= self.deque[0].sells_usd;
+
+            self.deque.pop_front();
+        }
+
+        self.high_price_window = i32::MIN as f64;
+        self.low_price_window = i32::MAX as f64;
+
+        for candle in &self.deque {
+            self.high_price_window = f64::max(self.high_price_window, candle.high_price);
+            self.low_price_window = f64::min(self.low_price_window, candle.low_price);
+        }
+    }
+
+    fn fill(&self, candle: &mut Candlestick) {
+        let mut price_changes = Vec::new();
+        for candle in &self.deque {
+            price_changes.push(candle.close_price / candle.open_price);
+        }
+
+        candle.std_price_change_window = match std_deviation(&price_changes) {
+            Some(r) => r,
+            None => 0.0,
+        };
+
+        candle.volume_window = self.volume_window;
+        candle.buys_count_window = self.buys_count_window;
+        candle.sells_count_window = self.sells_count_window;
+        candle.buys_usd_window = self.buys_usd_window;
+        candle.sells_usd_window = self.sells_usd_window;
+        candle.high_price_window = self.high_price_window;
+        candle.low_price_window = self.low_price_window;
+    }
+}
+
+fn mean(data: &[f64]) -> Option<f64> {
+    let sum = data.iter().sum::<f64>() as f64;
+    let count = data.len();
+
+    match count {
+        positive if positive > 0 => Some(sum / count as f64),
+        _ => None,
+    }
+}
+
+fn std_deviation(data: &[f64]) -> Option<f64> {
+    match (mean(data), data.len()) {
+        (Some(data_mean), count) if count > 0 => {
+            let variance = data
+                .iter()
+                .map(|value| {
+                    let diff = data_mean - (*value as f64);
+
+                    diff * diff
+                })
+                .sum::<f64>()
+                / count as f64;
+
+            Some(variance.sqrt())
+        }
+        _ => None,
+    }
 }
