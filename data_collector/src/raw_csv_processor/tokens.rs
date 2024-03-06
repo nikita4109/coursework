@@ -72,7 +72,7 @@ impl Tokens {
                     token_symbol: token_symbol.to_owned(),
                     token_address: token_address,
                     price: price,
-                    price_through_window: 0.0,
+                    next_candle_close_price: 0.0,
                     volume: 0.0,
                     buys_count: 0,
                     sells_count: 0,
@@ -103,8 +103,12 @@ impl Tokens {
             let mut bucket: Vec<TokenTick> = Vec::new();
             let start_idx = self.candlesticks.len();
 
-            let mut window = Window::new(self.blocks_window_len);
-            let mut big_window = BigWindow::new(300 * 24);
+            let blocks_in_hour = 300u64;
+
+            let mut window_6h = Window::new(blocks_in_hour * 6);
+            let mut window_1d = Window::new(blocks_in_hour * 24);
+            let mut window_3d = Window::new(blocks_in_hour * 24 * 3);
+            let mut big_window = BigWindow::new(blocks_in_hour * 24 * 7);
 
             for (block_number, tick) in ticks {
                 if let Some(first_tick) = bucket.first() {
@@ -114,8 +118,14 @@ impl Tokens {
                     {
                         let mut candlestick = self.build_candlestick(bucket.clone());
 
-                        window.fill(&mut candlestick);
-                        window.add(candlestick.clone());
+                        window_6h.fill_6h(&mut candlestick);
+                        window_6h.add(candlestick.clone());
+
+                        window_1d.fill_1d(&mut candlestick);
+                        window_1d.add(candlestick.clone());
+
+                        window_3d.fill_3d(&mut candlestick);
+                        window_3d.add(candlestick.clone());
 
                         big_window.fill(&mut candlestick);
                         big_window.add(candlestick.clone());
@@ -130,7 +140,9 @@ impl Tokens {
 
             if bucket.len() == 0 {
                 let mut candlestick = self.build_candlestick(bucket.clone());
-                window.fill(&mut candlestick);
+                window_6h.fill_6h(&mut candlestick);
+                window_1d.fill_1d(&mut candlestick);
+                window_3d.fill_3d(&mut candlestick);
                 big_window.fill(&mut candlestick);
 
                 self.candlesticks.push(candlestick);
@@ -230,11 +242,11 @@ impl BigWindow {
     }
 
     fn fill(&self, candle: &mut Candlestick) {
-        candle.volume_day = self.volume_window;
-        candle.buys_count_day = self.buys_count_window;
-        candle.sells_count_day = self.sells_count_window;
-        candle.buys_usd_day = self.buys_usd_window;
-        candle.sells_usd_day = self.sells_usd_window;
+        candle.volume_week = self.volume_window;
+        candle.buys_count_week = self.buys_count_window;
+        candle.sells_count_week = self.sells_count_window;
+        candle.buys_usd_week = self.buys_usd_window;
+        candle.sells_usd_week = self.sells_usd_window;
     }
 }
 
@@ -297,7 +309,7 @@ impl Window {
         }
     }
 
-    fn fill(&self, candle: &mut Candlestick) {
+    fn fill_6h(&self, candle: &mut Candlestick) {
         let mut price_changes = Vec::new();
         let mut avg_price = 0.0;
         for candle in &self.deque {
@@ -310,19 +322,75 @@ impl Window {
             avg_price = avg_price / (self.deque.len() + 1) as f64;
         }
 
-        candle.std_price_change_window = match std_deviation(&price_changes) {
+        candle.std_price_change_6h = match std_deviation(&price_changes) {
             Some(r) => r,
             None => 0.0,
         };
-        candle.avg_price_change_window = avg_price;
+        candle.avg_price_change_6h = avg_price;
 
-        candle.volume_window = self.volume_window;
-        candle.buys_count_window = self.buys_count_window;
-        candle.sells_count_window = self.sells_count_window;
-        candle.buys_usd_window = self.buys_usd_window;
-        candle.sells_usd_window = self.sells_usd_window;
-        candle.high_price_window = self.high_price_window;
-        candle.low_price_window = self.low_price_window;
+        candle.volume_6h = self.volume_window;
+        candle.buys_count_6h = self.buys_count_window;
+        candle.sells_count_6h = self.sells_count_window;
+        candle.buys_usd_6h = self.buys_usd_window;
+        candle.sells_usd_6h = self.sells_usd_window;
+        candle.high_price_6h = self.high_price_window;
+        candle.low_price_6h = self.low_price_window;
+    }
+
+    fn fill_1d(&self, candle: &mut Candlestick) {
+        let mut price_changes = Vec::new();
+        let mut avg_price = 0.0;
+        for candle in &self.deque {
+            price_changes.push(candle.close_price / candle.open_price);
+            avg_price += candle.open_price;
+        }
+
+        if let Some(last) = self.deque.back() {
+            avg_price += last.close_price;
+            avg_price = avg_price / (self.deque.len() + 1) as f64;
+        }
+
+        candle.std_price_change_1d = match std_deviation(&price_changes) {
+            Some(r) => r,
+            None => 0.0,
+        };
+        candle.avg_price_change_1d = avg_price;
+
+        candle.volume_1d = self.volume_window;
+        candle.buys_count_1d = self.buys_count_window;
+        candle.sells_count_1d = self.sells_count_window;
+        candle.buys_usd_1d = self.buys_usd_window;
+        candle.sells_usd_1d = self.sells_usd_window;
+        candle.high_price_1d = self.high_price_window;
+        candle.low_price_1d = self.low_price_window;
+    }
+
+    fn fill_3d(&self, candle: &mut Candlestick) {
+        let mut price_changes = Vec::new();
+        let mut avg_price = 0.0;
+        for candle in &self.deque {
+            price_changes.push(candle.close_price / candle.open_price);
+            avg_price += candle.open_price;
+        }
+
+        if let Some(last) = self.deque.back() {
+            avg_price += last.close_price;
+            avg_price = avg_price / (self.deque.len() + 1) as f64;
+        }
+
+        candle.std_price_change_3d = match std_deviation(&price_changes) {
+            Some(r) => r,
+            None => 0.0,
+        };
+        candle.avg_price_change_3d = avg_price;
+
+        candle.volume_3d = self.volume_window;
+        candle.buys_count_3d = self.buys_count_window;
+        candle.sells_count_3d = self.sells_count_window;
+        candle.buys_usd_3d = self.buys_usd_window;
+        candle.sells_usd_3d = self.sells_usd_window;
+        candle.high_price_3d = self.high_price_window;
+        candle.low_price_3d = self.low_price_window;
     }
 }
 
