@@ -33,6 +33,7 @@ pub struct Candlestick {
     pub buys_usd: f64,
     pub sells_usd: f64,
 
+    pub open_price_6h: f64,
     pub volume_6h: f64,
     pub buys_count_6h: u64,
     pub sells_count_6h: u64,
@@ -43,6 +44,7 @@ pub struct Candlestick {
     pub std_price_change_6h: f64,
     pub avg_price_change_6h: f64,
 
+    pub open_price_1d: f64,
     pub volume_1d: f64,
     pub buys_count_1d: u64,
     pub sells_count_1d: u64,
@@ -53,6 +55,7 @@ pub struct Candlestick {
     pub std_price_change_1d: f64,
     pub avg_price_change_1d: f64,
 
+    pub open_price_3d: f64,
     pub volume_3d: f64,
     pub buys_count_3d: u64,
     pub sells_count_3d: u64,

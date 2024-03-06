@@ -328,6 +328,11 @@ impl Window {
         };
         candle.avg_price_change_6h = avg_price;
 
+        candle.open_price_6h = match self.deque.front() {
+            Some(r) => r.open_price,
+            None => 0.0,
+        };
+
         candle.volume_6h = self.volume_window;
         candle.buys_count_6h = self.buys_count_window;
         candle.sells_count_6h = self.sells_count_window;
@@ -356,6 +361,11 @@ impl Window {
         };
         candle.avg_price_change_1d = avg_price;
 
+        candle.open_price_1d = match self.deque.front() {
+            Some(r) => r.open_price,
+            None => 0.0,
+        };
+
         candle.volume_1d = self.volume_window;
         candle.buys_count_1d = self.buys_count_window;
         candle.sells_count_1d = self.sells_count_window;
@@ -383,6 +393,11 @@ impl Window {
             None => 0.0,
         };
         candle.avg_price_change_3d = avg_price;
+
+        candle.open_price_3d = match self.deque.front() {
+            Some(r) => r.open_price,
+            None => 0.0,
+        };
 
         candle.volume_3d = self.volume_window;
         candle.buys_count_3d = self.buys_count_window;
