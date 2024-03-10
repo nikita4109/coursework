@@ -22,43 +22,19 @@ use web3::Web3;
 
 pub struct LogsProcessor {
     rpc: String,
-    events: Vec<Event>,
     cex_data: Vec<CEXData>,
     pools: HashMap<Address, PoolInfo>,
+    logs_path: String,
 }
 
 impl LogsProcessor {
     pub fn new(args: LogsProcessorArgs) -> Self {
         LogsProcessor {
             rpc: args.rpc,
-            events: LogsProcessor::read_logs_csv(&args.logs_path),
             cex_data: LogsProcessor::read_cex_data_csv(&args.cex_data_path),
             pools: LogsProcessor::read_pools(&args.pools_path),
+            logs_path: args.logs_path,
         }
-    }
-
-    fn read_logs_csv(path: &str) -> Vec<Event> {
-        let mut events = Vec::new();
-
-        let file = File::open(Path::new(path)).expect("invalid logs csv path");
-
-        let reader = BufReader::new(file);
-
-        for line in reader.lines() {
-            match line {
-                Ok(content) => {
-                    let args = content.split(',').map(|s| s.to_string()).collect();
-                    if let Some(event) = parse_event(args) {
-                        events.push(event);
-                    }
-                }
-                Err(e) => {
-                    panic!("Error reading line: {}", e);
-                }
-            }
-        }
-
-        return events;
     }
 
     fn read_cex_data_csv(path: &str) -> Vec<CEXData> {
@@ -180,91 +156,132 @@ impl LogsProcessor {
         let swaps_file = File::create(&format!("{}/swaps.csv", dir)).unwrap();
         let mut swaps_wtr = Writer::from_writer(swaps_file);
 
-        for event in &self.events {
-            match event {
-                Event::Sync(event) => {
-                    if let Some((token0, token1)) = pool_address_to_tokens.get(&event.address) {
-                        price_agregator.handle_sync(token0, token1, event);
+        let file = File::open(Path::new(&self.logs_path)).expect("invalid logs csv path");
+        let reader = BufReader::new(file);
 
-                        reserves_wtr
-                            .serialize(SyncTick {
-                                token0_symbol: token0.symbol.clone(),
-                                token1_symbol: token1.symbol.clone(),
-                                token0_address: token0.address,
-                                token1_address: token1.address,
-                                block_number: event.block_number,
-                                address: event.address,
-                                reserve0: normalize(event.reserve0, token0.decimals),
-                                reserve1: normalize(event.reserve1, token1.decimals),
-                                token0_usd_price: price_agregator.token_usd_price(token0),
-                                token1_usd_price: price_agregator.token_usd_price(token1),
-                            })
-                            .unwrap();
+        for line in reader.lines() {
+            match line {
+                Ok(content) => {
+                    let args = content.split(',').map(|s| s.to_string()).collect();
+                    if let Some(event) = parse_event(args) {
+                        match event {
+                            Event::Sync(event) => {
+                                if let Some((token0, token1)) =
+                                    pool_address_to_tokens.get(&event.address)
+                                {
+                                    price_agregator.handle_sync(token0, token1, &event);
+
+                                    reserves_wtr
+                                        .serialize(SyncTick {
+                                            token0_symbol: token0.symbol.clone(),
+                                            token1_symbol: token1.symbol.clone(),
+                                            token0_address: token0.address,
+                                            token1_address: token1.address,
+                                            block_number: event.block_number,
+                                            address: event.address,
+                                            reserve0: normalize(event.reserve0, token0.decimals),
+                                            reserve1: normalize(event.reserve1, token1.decimals),
+                                            token0_usd_price: price_agregator
+                                                .token_usd_price(token0),
+                                            token1_usd_price: price_agregator
+                                                .token_usd_price(token1),
+                                        })
+                                        .unwrap();
+                                }
+                            }
+
+                            Event::Swap(event) => {
+                                if let Some((token0, token1)) =
+                                    pool_address_to_tokens.get(&event.address)
+                                {
+                                    swaps_wtr
+                                        .serialize(SwapTick {
+                                            token0_symbol: token0.symbol.clone(),
+                                            token1_symbol: token1.symbol.clone(),
+                                            token0_address: token0.address,
+                                            token1_address: token1.address,
+                                            block_number: event.block_number,
+                                            address: event.address,
+                                            sender: event.sender,
+                                            amount0_in: normalize(
+                                                event.amount0_in,
+                                                token0.decimals,
+                                            ),
+                                            amount0_out: normalize(
+                                                event.amount0_out,
+                                                token0.decimals,
+                                            ),
+                                            amount1_in: normalize(
+                                                event.amount1_in,
+                                                token1.decimals,
+                                            ),
+                                            amount1_out: normalize(
+                                                event.amount1_out,
+                                                token1.decimals,
+                                            ),
+                                            token0_usd_price: price_agregator
+                                                .token_usd_price(token0),
+                                            token1_usd_price: price_agregator
+                                                .token_usd_price(token1),
+                                        })
+                                        .unwrap();
+                                }
+                            }
+
+                            Event::Mint(event) => {
+                                if let Some((token0, token1)) =
+                                    pool_address_to_tokens.get(&event.address)
+                                {
+                                    liquidity_providing_wtr
+                                        .serialize(LiquidityTick {
+                                            token0_symbol: token0.symbol.clone(),
+                                            token1_symbol: token1.symbol.clone(),
+                                            token0_address: token0.address,
+                                            token1_address: token1.address,
+                                            block_number: event.block_number,
+                                            address: event.address,
+                                            sender: event.sender,
+                                            amount0: normalize(event.amount0, token0.decimals),
+                                            amount1: normalize(event.amount1, token1.decimals),
+                                            token0_usd_price: price_agregator
+                                                .token_usd_price(token0),
+                                            token1_usd_price: price_agregator
+                                                .token_usd_price(token1),
+                                        })
+                                        .unwrap();
+                                }
+                            }
+
+                            Event::Burn(event) => {
+                                if let Some((token0, token1)) =
+                                    pool_address_to_tokens.get(&event.address)
+                                {
+                                    liquidity_providing_wtr
+                                        .serialize(LiquidityTick {
+                                            token0_symbol: token0.symbol.clone(),
+                                            token1_symbol: token1.symbol.clone(),
+                                            token0_address: token0.address,
+                                            token1_address: token1.address,
+                                            block_number: event.block_number,
+                                            address: event.address,
+                                            sender: event.sender,
+                                            amount0: -normalize(event.amount0, token0.decimals),
+                                            amount1: -normalize(event.amount1, token1.decimals),
+                                            token0_usd_price: price_agregator
+                                                .token_usd_price(token0),
+                                            token1_usd_price: price_agregator
+                                                .token_usd_price(token1),
+                                        })
+                                        .unwrap();
+                                }
+                            }
+                        };
                     }
                 }
-
-                Event::Swap(event) => {
-                    if let Some((token0, token1)) = pool_address_to_tokens.get(&event.address) {
-                        swaps_wtr
-                            .serialize(SwapTick {
-                                token0_symbol: token0.symbol.clone(),
-                                token1_symbol: token1.symbol.clone(),
-                                token0_address: token0.address,
-                                token1_address: token1.address,
-                                block_number: event.block_number,
-                                address: event.address,
-                                sender: event.sender,
-                                amount0_in: normalize(event.amount0_in, token0.decimals),
-                                amount0_out: normalize(event.amount0_out, token0.decimals),
-                                amount1_in: normalize(event.amount1_in, token1.decimals),
-                                amount1_out: normalize(event.amount1_out, token1.decimals),
-                                token0_usd_price: price_agregator.token_usd_price(token0),
-                                token1_usd_price: price_agregator.token_usd_price(token1),
-                            })
-                            .unwrap();
-                    }
+                Err(e) => {
+                    panic!("Error reading line: {}", e);
                 }
-
-                Event::Mint(event) => {
-                    if let Some((token0, token1)) = pool_address_to_tokens.get(&event.address) {
-                        liquidity_providing_wtr
-                            .serialize(LiquidityTick {
-                                token0_symbol: token0.symbol.clone(),
-                                token1_symbol: token1.symbol.clone(),
-                                token0_address: token0.address,
-                                token1_address: token1.address,
-                                block_number: event.block_number,
-                                address: event.address,
-                                sender: event.sender,
-                                amount0: normalize(event.amount0, token0.decimals),
-                                amount1: normalize(event.amount1, token1.decimals),
-                                token0_usd_price: price_agregator.token_usd_price(token0),
-                                token1_usd_price: price_agregator.token_usd_price(token1),
-                            })
-                            .unwrap();
-                    }
-                }
-
-                Event::Burn(event) => {
-                    if let Some((token0, token1)) = pool_address_to_tokens.get(&event.address) {
-                        liquidity_providing_wtr
-                            .serialize(LiquidityTick {
-                                token0_symbol: token0.symbol.clone(),
-                                token1_symbol: token1.symbol.clone(),
-                                token0_address: token0.address,
-                                token1_address: token1.address,
-                                block_number: event.block_number,
-                                address: event.address,
-                                sender: event.sender,
-                                amount0: -normalize(event.amount0, token0.decimals),
-                                amount1: -normalize(event.amount1, token1.decimals),
-                                token0_usd_price: price_agregator.token_usd_price(token0),
-                                token1_usd_price: price_agregator.token_usd_price(token1),
-                            })
-                            .unwrap();
-                    }
-                }
-            };
+            }
         }
 
         println!("[Events handled]");
