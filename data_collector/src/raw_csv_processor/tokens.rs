@@ -8,16 +8,14 @@ use ta::{indicators::ExponentialMovingAverage, Next};
 use web3::types::Address;
 
 pub struct Tokens {
-    blocks_window_len: u64,
     candlestick_len: u64,
     agr_token_ticks: HashMap<Address, BTreeMap<u64, TokenTick>>,
     candlesticks: Vec<Candlestick>,
 }
 
 impl Tokens {
-    pub fn new(blocks_window_len: u64, candlestick_len: u64) -> Self {
+    pub fn new(candlestick_len: u64) -> Self {
         Self {
-            blocks_window_len: blocks_window_len,
             candlestick_len: candlestick_len,
             agr_token_ticks: HashMap::new(),
             candlesticks: Vec::new(),
@@ -25,6 +23,10 @@ impl Tokens {
     }
 
     pub fn handle_swap(&mut self, swap: SwapTick) {
+        if swap.token0_usd_price.is_nan() || swap.token1_usd_price.is_nan() {
+            return;
+        }
+
         let volume =
             swap.token0_usd_price * swap.amount0_in + swap.token1_usd_price * swap.amount1_in;
 
@@ -118,17 +120,17 @@ impl Tokens {
                     {
                         let mut candlestick = self.build_candlestick(bucket.clone());
 
-                        window_6h.fill_6h(&mut candlestick);
                         window_6h.add(candlestick.clone());
+                        window_6h.fill_6h(&mut candlestick);
 
-                        window_1d.fill_1d(&mut candlestick);
                         window_1d.add(candlestick.clone());
+                        window_1d.fill_1d(&mut candlestick);
 
-                        window_3d.fill_3d(&mut candlestick);
                         window_3d.add(candlestick.clone());
+                        window_3d.fill_3d(&mut candlestick);
 
-                        big_window.fill(&mut candlestick);
                         big_window.add(candlestick.clone());
+                        big_window.fill(&mut candlestick);
 
                         self.candlesticks.push(candlestick);
                         bucket.clear();
@@ -140,9 +142,16 @@ impl Tokens {
 
             if bucket.len() == 0 {
                 let mut candlestick = self.build_candlestick(bucket.clone());
+                window_6h.add(candlestick.clone());
                 window_6h.fill_6h(&mut candlestick);
+
+                window_1d.add(candlestick.clone());
                 window_1d.fill_1d(&mut candlestick);
+
+                window_3d.add(candlestick.clone());
                 window_3d.fill_3d(&mut candlestick);
+
+                big_window.add(candlestick.clone());
                 big_window.fill(&mut candlestick);
 
                 self.candlesticks.push(candlestick);
