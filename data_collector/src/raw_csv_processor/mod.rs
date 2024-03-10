@@ -16,17 +16,14 @@ impl RawCSVProcessor {
     }
 
     pub fn write_tokens_csv(&self) {
-        let mut swaps = Vec::new();
-
         let mut rdr = Reader::from_path(&self.args.swaps_path).expect("can't read swaps csv");
-        for result in rdr.deserialize() {
-            swaps.push(result.unwrap());
-        }
 
         let mut tokens = Tokens::new(self.args.blocks_window_len, self.args.candlestick_len);
-        for swap in swaps {
-            tokens.handle_swap(swap);
+        for result in rdr.deserialize() {
+            tokens.handle_swap(result.unwrap());
         }
+
+        println!("[SWAPS HANDLED]");
 
         tokens.build_candlesticks();
 
