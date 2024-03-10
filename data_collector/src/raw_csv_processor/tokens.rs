@@ -26,7 +26,14 @@ impl Tokens {
         let volume =
             swap.token0_usd_price * swap.amount0_in + swap.token1_usd_price * swap.amount1_in;
 
-        if volume.is_nan() {
+        if swap.token0_usd_price.is_nan()
+            || swap.token1_usd_price.is_nan()
+            || volume.is_nan()
+            || swap.amount0_in.is_nan()
+            || swap.amount0_out.is_nan()
+            || swap.amount1_in.is_nan()
+            || swap.amount1_out.is_nan()
+        {
             return;
         }
 
