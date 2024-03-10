@@ -73,13 +73,14 @@ impl PriceAgregator {
     }
 
     fn update_price(&mut self, token: &Token, pool_idx: usize) {
-        let best_pool = match self.find_best_pool(token, pool_idx) {
+        let best_pool_idx = match self.find_best_pool(token, pool_idx) {
             Some(r) => r,
             None => return,
         };
 
         self.token_to_biggest_pool.insert(token.address, pool_idx);
 
+        let best_pool = &self.pools[best_pool_idx];
         let usd_price = if best_pool.token0.address == token.address {
             best_pool.price0() * self.token_usd_price(&best_pool.token1)
         } else {
@@ -89,21 +90,22 @@ impl PriceAgregator {
         self.tokens_prices.insert(token.address, usd_price);
     }
 
-    fn find_best_pool(&mut self, token: &Token, pool_idx: usize) -> Option<Pool> {
+    fn find_best_pool(&mut self, token: &Token, pool_idx: usize) -> Option<usize> {
         let pool = &self.pools[pool_idx];
 
         match self.token_to_biggest_pool.get(&token.address) {
             Some(biggest_pool_idx) => {
-                let biggest_pool = &self.pools[*biggest_pool_idx];
+                let biggest_pool_idx = *biggest_pool_idx;
+                let biggest_pool = &self.pools[biggest_pool_idx];
                 if pool.address == biggest_pool.address {
-                    return Some(pool.clone());
+                    return Some(pool_idx);
                 }
 
                 if self.decent_token_addresses.contains(&token.address)
                     && self.decent_token_addresses.contains(&pool.token0.address)
                         != self.decent_token_addresses.contains(&pool.token1.address)
                 {
-                    return Some(biggest_pool.clone());
+                    return Some(biggest_pool_idx);
                 }
 
                 let reserve_biggest = if biggest_pool.token0.address == token.address {
@@ -119,9 +121,9 @@ impl PriceAgregator {
                 };
 
                 if reserve_biggest < reserve_current {
-                    Some(pool.clone())
+                    Some(pool_idx)
                 } else {
-                    Some(biggest_pool.clone())
+                    Some(biggest_pool_idx)
                 }
             }
             None => {
@@ -132,12 +134,12 @@ impl PriceAgregator {
                     return None;
                 }
 
-                Some(pool.clone())
+                Some(pool_idx)
             }
         }
     }
 
-    pub fn token_usd_price(&mut self, token: &Token) -> f64 {
+    pub fn token_usd_price(&self, token: &Token) -> f64 {
         if self.usd_token_addresses.contains(&token.address) {
             return 1.0;
         }
