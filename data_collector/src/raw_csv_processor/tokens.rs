@@ -23,12 +23,12 @@ impl Tokens {
     }
 
     pub fn handle_swap(&mut self, swap: SwapTick) {
-        if swap.token0_usd_price.is_nan() || swap.token1_usd_price.is_nan() {
-            return;
-        }
-
         let volume =
             swap.token0_usd_price * swap.amount0_in + swap.token1_usd_price * swap.amount1_in;
+
+        if volume.is_nan() {
+            return;
+        }
 
         self.update(
             swap.block_number,
