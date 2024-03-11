@@ -17,24 +17,22 @@ impl Pool {
         let reserve0 = normalize(self.reserve0, self.token0.decimals);
         let reserve1 = normalize(self.reserve1, self.token1.decimals);
 
-        let price = reserve1 / reserve0;
-        if price.is_nan() || price.is_infinite() {
+        if reserve0 < 1e-8 {
             return 0.0;
         }
 
-        return price;
+        reserve1 / reserve0
     }
 
     fn price1(&self) -> f64 {
         let reserve0 = normalize(self.reserve0, self.token0.decimals);
         let reserve1 = normalize(self.reserve1, self.token1.decimals);
 
-        let price = reserve0 / reserve1;
-        if price.is_nan() || price.is_infinite() {
+        if reserve1 < 1e-8 {
             return 0.0;
         }
 
-        return price;
+        reserve0 / reserve1
     }
 }
 
@@ -88,7 +86,7 @@ impl PriceAgregator {
             None => return,
         };
 
-        self.token_to_biggest_pool.insert(token.address, pool_idx);
+        self.token_to_biggest_pool.insert(token.address, best_pool_idx);
 
         let best_pool = &self.pools[best_pool_idx];
         let usd_price = if best_pool.token0.address == token.address {
