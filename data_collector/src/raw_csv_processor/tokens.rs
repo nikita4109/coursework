@@ -98,6 +98,14 @@ impl Tokens {
 
     pub fn build_candlesticks(&mut self) {
         for (_, ticks) in &self.agr_token_ticks {
+            let first_tick = match ticks.first_key_value() {
+                Some(r) => r.1,
+                None => continue,
+            };
+
+            let mut current_interval_start =
+                first_tick.block_number - (first_tick.block_number % self.candlestick_len);
+
             let mut bucket: Vec<TokenTick> = Vec::new();
             let start_idx = self.candlesticks.len();
 
@@ -109,11 +117,10 @@ impl Tokens {
             let mut big_window = BigWindow::new(blocks_in_hour * 24 * 7);
 
             for (block_number, tick) in ticks {
-                if let Some(first_tick) = bucket.first() {
-                    if block_number % self.candlestick_len
-                        <= first_tick.block_number % self.candlestick_len
-                        || block_number - first_tick.block_number >= self.candlestick_len
-                    {
+                let interval_start = block_number - (block_number % self.candlestick_len);
+
+                if interval_start != current_interval_start {
+                    if !bucket.is_empty() {
                         let mut candlestick = self.build_candlestick(bucket.clone());
 
                         window_6h.add(candlestick.clone());
@@ -131,12 +138,14 @@ impl Tokens {
                         self.candlesticks.push(candlestick);
                         bucket.clear();
                     }
+
+                    current_interval_start = interval_start;
                 }
 
                 bucket.push(tick.clone());
             }
 
-            if bucket.len() == 0 {
+            if !bucket.is_empty() {
                 let mut candlestick = self.build_candlestick(bucket.clone());
                 window_6h.add(candlestick.clone());
                 window_6h.fill_6h(&mut candlestick);
