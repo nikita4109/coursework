@@ -1,5 +1,6 @@
 use clap::{Parser, Subcommand};
 
+mod binance_collector;
 mod blocks_collector;
 mod logs_collector;
 mod logs_processor;
@@ -20,6 +21,7 @@ enum Commands {
     RawCSVProcessor(RawCSVsProcessorArgs),
     PoolsCollector(PoolsCollectorArgs),
     BlocksCollector(BlocksCollectorArgs),
+    BinanceCollector(BinanceCollectorArgs),
 }
 
 #[derive(Parser)]
@@ -94,6 +96,12 @@ struct BlocksCollectorArgs {
     output_filepath: String,
 }
 
+#[derive(Parser)]
+struct BinanceCollectorArgs {
+    #[arg(short, long)]
+    output_filepath: String,
+}
+
 #[tokio::main]
 async fn main() {
     let cli = Cli::parse();
@@ -128,6 +136,10 @@ async fn main() {
 
         Commands::BlocksCollector(args) => {
             blocks_collector::collect(args).await;
+        }
+
+        Commands::BinanceCollector(args) => {
+            binance_collector::fetch_all_trades(&args.output_filepath, "WIFUSDT").await;
         }
     };
 }
