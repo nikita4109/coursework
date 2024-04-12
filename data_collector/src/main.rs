@@ -139,7 +139,9 @@ async fn main() {
         }
 
         Commands::BinanceCollector(args) => {
-            binance_collector::fetch_all_trades(&args.output_filepath, "WIFUSDT").await;
+            binance_collector::fetch_all_trades(&args.output_filepath, "WIFUSDT")
+                .await
+                .unwrap();
         }
     };
 }
