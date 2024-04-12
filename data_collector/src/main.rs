@@ -1,6 +1,5 @@
 use clap::{Parser, Subcommand};
 
-mod binance_collector;
 mod blocks_collector;
 mod logs_collector;
 mod logs_processor;
@@ -136,12 +135,6 @@ async fn main() {
 
         Commands::BlocksCollector(args) => {
             blocks_collector::collect(args).await;
-        }
-
-        Commands::BinanceCollector(args) => {
-            binance_collector::fetch_all_trades(&args.output_filepath, "WIFUSDT")
-                .await
-                .unwrap();
         }
     };
 }
