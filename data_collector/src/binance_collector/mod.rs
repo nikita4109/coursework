@@ -63,6 +63,8 @@ pub async fn fetch_all_trades(output_filepath: &str, symbol: &str) -> Result<()>
     let mut from_id = None;
     let limit = 1000;
 
+    let mut count = 0;
+
     loop {
         let trades = get_historical_trades(symbol, limit, from_id).await?;
         all_trades.extend(trades.clone());
@@ -70,6 +72,9 @@ pub async fn fetch_all_trades(output_filepath: &str, symbol: &str) -> Result<()>
         if trades.len() < limit as usize {
             break;
         }
+
+        count += trades.len();
+        println!("{}", count);
 
         from_id = Some(trades.first().unwrap().id);
     }
