@@ -1,6 +1,8 @@
 use anyhow::{anyhow, Result};
 use csv::Writer;
 use serde::{Deserialize, Serialize};
+use tokio::time::sleep;
+use tokio::time::Duration;
 
 #[derive(Debug, Deserialize, Clone, Serialize)]
 struct Trade {
@@ -22,7 +24,6 @@ async fn get_historical_trades(
     from_id: Option<u64>,
 ) -> Result<Vec<Trade>> {
     let url = "https://api.binance.com/api/v3/historicalTrades";
-    let limit = limit.to_string();
     let mut params = vec![
         ("symbol".to_string(), symbol.to_string()),
         ("limit".to_string(), limit.to_string()),
@@ -33,14 +34,28 @@ async fn get_historical_trades(
     }
 
     let client = reqwest::Client::new();
-    let response = client.get(url).query(&params).send().await?;
+    let mut retry_delay = Duration::from_secs(1);
+    let max_retries = 5;
 
-    if response.status().is_success() {
-        let trades: Vec<Trade> = response.json().await?;
-        Ok(trades)
-    } else {
-        Err(anyhow!(response.status()))
+    for _ in 0..max_retries {
+        let response = client.get(url).query(&params).send().await?;
+
+        if response.status().is_success() {
+            let trades: Vec<Trade> = response.json().await?;
+            return Ok(trades);
+        } else if response.status() == reqwest::StatusCode::TOO_MANY_REQUESTS {
+            eprintln!(
+                "Rate limit exceeded. Retrying after {} seconds...",
+                retry_delay.as_secs()
+            );
+            sleep(retry_delay).await;
+            retry_delay *= 2;
+        } else {
+            return Err(anyhow!(response.status()));
+        }
     }
+
+    Err(anyhow!(reqwest::StatusCode::TOO_MANY_REQUESTS))
 }
 
 pub async fn fetch_all_trades(output_filepath: &str, symbol: &str) -> Result<()> {
