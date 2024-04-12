@@ -7,9 +7,12 @@ struct Trade {
     id: u64,
     price: String,
     qty: String,
+    #[serde(rename = "quoteQty")]
     quote_qty: String,
     time: u64,
+    #[serde(rename = "isBuyerMaker")]
     is_buyer_maker: bool,
+    #[serde(rename = "isBestMatch")]
     is_best_match: bool,
 }
 
