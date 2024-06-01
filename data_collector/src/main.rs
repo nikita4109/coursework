@@ -1,16 +1,24 @@
+#[macro_use]
+extern crate diesel;
+
 use clap::{Parser, Subcommand};
 
 mod blocks_collector;
+mod db;
 mod logs_collector;
 mod logs_processor;
 mod pools_collector;
 mod raw_csv_processor;
 mod utils;
 
+use db::db::establish_connection;
+
 #[derive(Parser)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
+    #[arg(short, long)]
+    db_url: String,
 }
 
 #[derive(Subcommand)]
@@ -20,7 +28,6 @@ enum Commands {
     RawCSVProcessor(RawCSVsProcessorArgs),
     PoolsCollector(PoolsCollectorArgs),
     BlocksCollector(BlocksCollectorArgs),
-    BinanceCollector(BinanceCollectorArgs),
 }
 
 #[derive(Parser)]
@@ -104,6 +111,7 @@ struct BinanceCollectorArgs {
 #[tokio::main]
 async fn main() {
     let cli = Cli::parse();
+    let conn = establish_connection(&cli.db_url);
 
     match cli.command {
         Commands::LogsCollector(args) => {
@@ -114,27 +122,27 @@ async fn main() {
                 rpc: args.rpc,
             };
 
-            logs_collector::collect(opts).await;
+            logs_collector::collect(&conn, opts).await;
         }
 
         Commands::LogsProcessor(args) => {
             let output_dir = args.output_dir.clone();
-            let processor = logs_processor::LogsProcessor::new(args);
-            processor.write_raw_csvs(&output_dir).await;
+            let processor = logs_processor::LogsProcessor::new(&conn, args);
+            processor.save_to_db(&conn).await;
         }
 
         Commands::RawCSVProcessor(args) => {
             let processor = raw_csv_processor::RawCSVProcessor::new(args);
-            processor.write_tokens_csv();
+            processor.save_tokens_db(conn);
         }
 
         Commands::PoolsCollector(args) => {
             let pools_collector = pools_collector::PoolCollector::new(args);
-            pools_collector.collect().await;
+            pools_collector.collect(conn).await;
         }
 
         Commands::BlocksCollector(args) => {
-            blocks_collector::collect(args).await;
+            blocks_collector::collect(&conn, args).await;
         }
     };
 }

@@ -6,10 +6,10 @@ use self::types::{LiquidityTick, SwapTick};
 use crate::logs_processor::types::CEXRecord;
 use crate::pools_collector::PoolInfo;
 use crate::{utils, LogsProcessorArgs};
-use csv::Reader;
-use csv::Writer;
+use diesel::prelude::*;
+use diesel::PgConnection;
 use std::collections::HashMap;
-use std::io::{BufReader, Read, Write};
+use std::io::{BufReader, Read};
 use std::path::Path;
 use std::{fs::File, io::BufRead};
 use types::{parse_event, Event};
@@ -29,71 +29,55 @@ pub struct LogsProcessor {
 
 impl LogsProcessor {
     pub fn new(args: LogsProcessorArgs) -> Self {
+        let conn = establish_connection();
         LogsProcessor {
             rpc: args.rpc,
-            cex_data: LogsProcessor::read_cex_data_csv(&args.cex_data_path),
-            pools: LogsProcessor::read_pools(&args.pools_path),
+            cex_data: LogsProcessor::read_cex_data_db(&conn),
+            pools: LogsProcessor::read_pools_db(&conn),
             logs_path: args.logs_path,
         }
     }
 
-    fn read_cex_data_csv(path: &str) -> Vec<CEXData> {
-        let mut data = Vec::new();
-
-        let mut rdr = Reader::from_path(path).expect("can't read CEX csv");
-        for result in rdr.deserialize() {
-            let record: CEXRecord = result.unwrap();
-            if record.platform_slug != "ethereum" {
-                continue;
-            }
-
-            if let Ok(token_address) = record.token_adress.parse() {
-                data.push(CEXData {
-                    address: token_address,
-                    token_symbol: record.symbol,
-                });
-            }
-        }
-
-        return data;
+    fn read_cex_data_db(conn: &PgConnection) -> Vec<CEXData> {
+        use crate::db::schema::cex_data::dsl::*;
+        cex_data
+            .filter(platform_slug.eq("ethereum"))
+            .load::<CEXData>(conn)
+            .expect("Error loading CEX data from database")
     }
 
-    fn read_pools(path: &str) -> HashMap<Address, PoolInfo> {
-        let mut file = File::open(path).expect("invalid path");
-        let mut content = String::new();
-        file.read_to_string(&mut content)
-            .expect("can't read file with pools");
-
-        let vec: Vec<PoolInfo> = serde_json::from_str(&content).expect("invalid pools json");
-        let mut pools = HashMap::new();
-
-        for pool in vec {
-            pools.insert(pool.address, pool);
-        }
-
-        return pools;
+    fn read_pools_db(conn: &PgConnection) -> HashMap<Address, PoolInfo> {
+        use crate::schema::pools::dsl::*;
+        let pool_infos = pools
+            .load::<PoolInfo>(conn)
+            .expect("Error loading pools from database");
+        
+        pool_infos.into_iter().map(|pool| {
+            let addr: Address = pool.address.parse().expect("Invalid pool address");
+            (addr, pool)
+        }).collect()
     }
 
-    pub async fn write_raw_csvs(&self, dir: &str) {
+    pub async fn save_to_db(&self, conn: &PgConnection) {
         let mut token_address_to_token = HashMap::new();
         for cex_record in &self.cex_data {
-            if token_address_to_token.contains_key(&cex_record.address) {
+            if token_address_to_token.contains_key(&cex_record.token_address) {
                 continue;
             }
 
-            if let Some(decimals) = self.get_decimals(cex_record.address).await {
+            if let Some(decimals) = self.get_decimals(cex_record.token_address.parse().unwrap()).await {
                 token_address_to_token.insert(
-                    cex_record.address,
+                    cex_record.token_address.clone(),
                     Token {
-                        symbol: cex_record.token_symbol.clone(),
-                        address: cex_record.address,
+                        symbol: cex_record.symbol.clone(),
+                        address: cex_record.token_address.parse().unwrap(),
                         decimals: decimals,
                     },
                 );
             }
         }
 
-        println!("[CEX csv handled]");
+        println!("[CEX data handled]");
 
         let mut pool_address_to_tokens = HashMap::new();
         for (address, pool_info) in &self.pools {
@@ -146,16 +130,6 @@ impl LogsProcessor {
         let mut price_agregator =
             price_agregator::PriceAgregator::new(usd_token_addresses, decent_tokens);
 
-        let liquidity_providing_file =
-            File::create(&format!("{}/liquidity_providing.csv", dir)).unwrap();
-        let mut liquidity_providing_wtr = Writer::from_writer(liquidity_providing_file);
-
-        let reserves_file = File::create(&format!("{}/reserves.csv", dir)).unwrap();
-        let mut reserves_wtr = Writer::from_writer(reserves_file);
-
-        let swaps_file = File::create(&format!("{}/swaps.csv", dir)).unwrap();
-        let mut swaps_wtr = Writer::from_writer(swaps_file);
-
         let file = File::open(Path::new(&self.logs_path)).expect("invalid logs csv path");
         let reader = BufReader::new(file);
 
@@ -171,22 +145,25 @@ impl LogsProcessor {
                                 {
                                     price_agregator.handle_sync(token0, token1, &event);
 
-                                    reserves_wtr
-                                        .serialize(SyncTick {
-                                            token0_symbol: token0.symbol.clone(),
-                                            token1_symbol: token1.symbol.clone(),
-                                            token0_address: token0.address,
-                                            token1_address: token1.address,
-                                            block_number: event.block_number,
-                                            address: event.address,
-                                            reserve0: normalize(event.reserve0, token0.decimals),
-                                            reserve1: normalize(event.reserve1, token1.decimals),
-                                            token0_usd_price: price_agregator
-                                                .token_usd_price(token0),
-                                            token1_usd_price: price_agregator
-                                                .token_usd_price(token1),
-                                        })
-                                        .unwrap();
+                                    let record = SyncTick {
+                                        token0_symbol: token0.symbol.clone(),
+                                        token1_symbol: token1.symbol.clone(),
+                                        token0_address: token0.address,
+                                        token1_address: token1.address,
+                                        block_number: event.block_number,
+                                        address: event.address,
+                                        reserve0: normalize(event.reserve0, token0.decimals),
+                                        reserve1: normalize(event.reserve1, token1.decimals),
+                                        token0_usd_price: price_agregator
+                                            .token_usd_price(token0),
+                                        token1_usd_price: price_agregator
+                                            .token_usd_price(token1),
+                                    };
+                                    
+                                    diesel::insert_into(crate::schema::logs::table)
+                                        .values(&record)
+                                        .execute(conn)
+                                        .expect("Error saving sync log to database");
                                 }
                             }
 
@@ -194,37 +171,40 @@ impl LogsProcessor {
                                 if let Some((token0, token1)) =
                                     pool_address_to_tokens.get(&event.address)
                                 {
-                                    swaps_wtr
-                                        .serialize(SwapTick {
-                                            token0_symbol: token0.symbol.clone(),
-                                            token1_symbol: token1.symbol.clone(),
-                                            token0_address: token0.address,
-                                            token1_address: token1.address,
-                                            block_number: event.block_number,
-                                            address: event.address,
-                                            sender: event.sender,
-                                            amount0_in: normalize(
-                                                event.amount0_in,
-                                                token0.decimals,
-                                            ),
-                                            amount0_out: normalize(
-                                                event.amount0_out,
-                                                token0.decimals,
-                                            ),
-                                            amount1_in: normalize(
-                                                event.amount1_in,
-                                                token1.decimals,
-                                            ),
-                                            amount1_out: normalize(
-                                                event.amount1_out,
-                                                token1.decimals,
-                                            ),
-                                            token0_usd_price: price_agregator
-                                                .token_usd_price(token0),
-                                            token1_usd_price: price_agregator
-                                                .token_usd_price(token1),
-                                        })
-                                        .unwrap();
+                                    let record = SwapTick {
+                                        token0_symbol: token0.symbol.clone(),
+                                        token1_symbol: token1.symbol.clone(),
+                                        token0_address: token0.address,
+                                        token1_address: token1.address,
+                                        block_number: event.block_number,
+                                        address: event.address,
+                                        sender: event.sender,
+                                        amount0_in: normalize(
+                                            event.amount0_in,
+                                            token0.decimals,
+                                        ),
+                                        amount0_out: normalize(
+                                            event.amount0_out,
+                                            token0.decimals,
+                                        ),
+                                        amount1_in: normalize(
+                                            event.amount1_in,
+                                            token1.decimals,
+                                        ),
+                                        amount1_out: normalize(
+                                            event.amount1_out,
+                                            token1.decimals,
+                                        ),
+                                        token0_usd_price: price_agregator
+                                            .token_usd_price(token0),
+                                        token1_usd_price: price_agregator
+                                            .token_usd_price(token1),
+                                    };
+                                    
+                                    diesel::insert_into(crate::schema::logs::table)
+                                        .values(&record)
+                                        .execute(conn)
+                                        .expect("Error saving swap log to database");
                                 }
                             }
 
@@ -232,23 +212,26 @@ impl LogsProcessor {
                                 if let Some((token0, token1)) =
                                     pool_address_to_tokens.get(&event.address)
                                 {
-                                    liquidity_providing_wtr
-                                        .serialize(LiquidityTick {
-                                            token0_symbol: token0.symbol.clone(),
-                                            token1_symbol: token1.symbol.clone(),
-                                            token0_address: token0.address,
-                                            token1_address: token1.address,
-                                            block_number: event.block_number,
-                                            address: event.address,
-                                            sender: event.sender,
-                                            amount0: normalize(event.amount0, token0.decimals),
-                                            amount1: normalize(event.amount1, token1.decimals),
-                                            token0_usd_price: price_agregator
-                                                .token_usd_price(token0),
-                                            token1_usd_price: price_agregator
-                                                .token_usd_price(token1),
-                                        })
-                                        .unwrap();
+                                    let record = LiquidityTick {
+                                        token0_symbol: token0.symbol.clone(),
+                                        token1_symbol: token1.symbol.clone(),
+                                        token0_address: token0.address,
+                                        token1_address: token1.address,
+                                        block_number: event.block_number,
+                                        address: event.address,
+                                        sender: event.sender,
+                                        amount0: normalize(event.amount0, token0.decimals),
+                                        amount1: normalize(event.amount1, token1.decimals),
+                                        token0_usd_price: price_agregator
+                                            .token_usd_price(token0),
+                                        token1_usd_price: price_agregator
+                                            .token_usd_price(token1),
+                                    };
+                                    
+                                    diesel::insert_into(crate::schema::logs::table)
+                                        .values(&record)
+                                        .execute(conn)
+                                        .expect("Error saving mint log to database");
                                 }
                             }
 
@@ -256,23 +239,26 @@ impl LogsProcessor {
                                 if let Some((token0, token1)) =
                                     pool_address_to_tokens.get(&event.address)
                                 {
-                                    liquidity_providing_wtr
-                                        .serialize(LiquidityTick {
-                                            token0_symbol: token0.symbol.clone(),
-                                            token1_symbol: token1.symbol.clone(),
-                                            token0_address: token0.address,
-                                            token1_address: token1.address,
-                                            block_number: event.block_number,
-                                            address: event.address,
-                                            sender: event.sender,
-                                            amount0: -normalize(event.amount0, token0.decimals),
-                                            amount1: -normalize(event.amount1, token1.decimals),
-                                            token0_usd_price: price_agregator
-                                                .token_usd_price(token0),
-                                            token1_usd_price: price_agregator
-                                                .token_usd_price(token1),
-                                        })
-                                        .unwrap();
+                                    let record = LiquidityTick {
+                                        token0_symbol: token0.symbol.clone(),
+                                        token1_symbol: token1.symbol.clone(),
+                                        token0_address: token0.address,
+                                        token1_address: token1.address,
+                                        block_number: event.block_number,
+                                        address: event.address,
+                                        sender: event.sender,
+                                        amount0: -normalize(event.amount0, token0.decimals),
+                                        amount1: -normalize(event.amount1, token1.decimals),
+                                        token0_usd_price: price_agregator
+                                            .token_usd_price(token0),
+                                        token1_usd_price: price_agregator
+                                            .token_usd_price(token1),
+                                    };
+                                    
+                                    diesel::insert_into(crate::schema::logs::table)
+                                        .values(&record)
+                                        .execute(conn)
+                                        .expect("Error saving burn log to database");
                                 }
                             }
                         };
@@ -285,10 +271,6 @@ impl LogsProcessor {
         }
 
         println!("[Events handled]");
-
-        liquidity_providing_wtr.flush().unwrap();
-        reserves_wtr.flush().unwrap();
-        swaps_wtr.flush().unwrap();
     }
 
     async fn get_decimals(&self, token_address: Address) -> Option<u64> {

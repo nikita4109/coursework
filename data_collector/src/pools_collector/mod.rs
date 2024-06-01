@@ -1,3 +1,4 @@
+use diesel::PgConnection;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::BufWriter;
@@ -32,7 +33,7 @@ impl PoolCollector {
         }
     }
 
-    pub async fn collect(&self) {
+    pub async fn collect(&self, conn: PgConnection) {
         let http = Http::new(&self.rpc).expect("Can't connect to RPC");
         let web3 = Web3::new(http);
 

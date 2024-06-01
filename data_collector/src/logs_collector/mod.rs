@@ -1,9 +1,11 @@
+use crate::db::db::{establish_connection, insert_multiple_logs};
+use crate::db::models::LogRecord;
 use async_recursion::async_recursion;
 use chrono::Utc;
+use diesel::PgConnection;
 use ethabi::{Contract, Event, RawLog, Token};
 use lazy_static::lazy_static;
 use std::sync::Arc;
-use std::{fs, io::Write};
 use tokio::sync::Semaphore;
 use tokio::time::{sleep, Duration};
 use web3::types::{BlockNumber, Filter, FilterBuilder, Log, H256, U64};
@@ -53,8 +55,8 @@ impl LocalFilter {
     }
 }
 
-fn convert_logs_to_string(logs: Vec<Log>) -> String {
-    let mut res = String::new();
+fn convert_logs_to_records(logs: Vec<Log>) -> Vec<LogRecord> {
+    let mut records = Vec::new();
 
     for log in logs {
         let topic = log.topics[0].clone();
@@ -76,14 +78,17 @@ fn convert_logs_to_string(logs: Vec<Log>) -> String {
                         Token::Address(x) => x,
                         _ => continue,
                     };
-                    res.push_str(&format!(
-                        "0,{:?},{:?},{:?},{:?},{:?}\n",
-                        log.block_number.unwrap(),
-                        log.address,
-                        token0,
-                        token1,
-                        pool
-                    ));
+                    records.push(LogRecord {
+                        id: 0,
+                        log_type: 0,
+                        block_number: log.block_number.unwrap().as_u64() as i64,
+                        address: format!("{:?}", log.address),
+                        data1: Some(format!("{:?}", token0)),
+                        data2: Some(format!("{:?}", token1)),
+                        data3: Some(format!("{:?}", pool)),
+                        data4: None,
+                        data5: None,
+                    });
                 }
             }
             _ if topic == SYNC_EVENT.signature() => {
@@ -99,13 +104,17 @@ fn convert_logs_to_string(logs: Vec<Log>) -> String {
                         Token::Uint(x) => x,
                         _ => continue,
                     };
-                    res.push_str(&format!(
-                        "1,{:?},{:?},{:?},{:?}\n",
-                        log.block_number.unwrap(),
-                        log.address,
-                        reserve0,
-                        reserve1
-                    ));
+                    records.push(LogRecord {
+                        id: 0,
+                        log_type: 1,
+                        block_number: log.block_number.unwrap().as_u64() as i64,
+                        address: format!("{:?}", log.address),
+                        data1: Some(format!("{:?}", reserve0)),
+                        data2: Some(format!("{:?}", reserve1)),
+                        data3: None,
+                        data4: None,
+                        data5: None,
+                    });
                 }
             }
             _ if topic == SWAP_EVENT.signature() => {
@@ -133,16 +142,17 @@ fn convert_logs_to_string(logs: Vec<Log>) -> String {
                         Token::Uint(x) => x,
                         _ => continue,
                     };
-                    res.push_str(&format!(
-                        "2,{:?},{:?},{:?},{:?},{:?},{:?},{:?}\n",
-                        log.block_number.unwrap(),
-                        log.address,
-                        sender,
-                        amount0_in,
-                        amount0_out,
-                        amount1_in,
-                        amount1_out
-                    ));
+                    records.push(LogRecord {
+                        id: 0,
+                        log_type: 2,
+                        block_number: log.block_number.unwrap().as_u64() as i64,
+                        address: format!("{:?}", log.address),
+                        data1: Some(format!("{:?}", sender)),
+                        data2: Some(format!("{:?}", amount0_in)),
+                        data3: Some(format!("{:?}", amount1_in)),
+                        data4: Some(format!("{:?}", amount0_out)),
+                        data5: Some(format!("{:?}", amount1_out)),
+                    });
                 }
             }
             _ if topic == MINT_EVENT.signature() => {
@@ -162,14 +172,17 @@ fn convert_logs_to_string(logs: Vec<Log>) -> String {
                         Token::Uint(x) => x,
                         _ => continue,
                     };
-                    res.push_str(&format!(
-                        "3,{:?},{:?},{:?},{:?},{:?}\n",
-                        log.block_number.unwrap(),
-                        log.address,
-                        sender,
-                        amount0,
-                        amount1
-                    ));
+                    records.push(LogRecord {
+                        id: 0,
+                        log_type: 3,
+                        block_number: log.block_number.unwrap().as_u64() as i64,
+                        address: format!("{:?}", log.address),
+                        data1: Some(format!("{:?}", sender)),
+                        data2: Some(format!("{:?}", amount0)),
+                        data3: Some(format!("{:?}", amount1)),
+                        data4: None,
+                        data5: None,
+                    });
                 }
             }
             _ if topic == BURN_EVENT.signature() => {
@@ -189,21 +202,24 @@ fn convert_logs_to_string(logs: Vec<Log>) -> String {
                         Token::Uint(x) => x,
                         _ => continue,
                     };
-                    res.push_str(&format!(
-                        "4,{:?},{:?},{:?},{:?},{:?}\n",
-                        log.block_number.unwrap(),
-                        log.address,
-                        sender,
-                        amount0,
-                        amount1
-                    ));
+                    records.push(LogRecord {
+                        id: 0,
+                        log_type: 4,
+                        block_number: log.block_number.unwrap().as_u64() as i64,
+                        address: format!("{:?}", log.address),
+                        data1: Some(format!("{:?}", sender)),
+                        data2: Some(format!("{:?}", amount0)),
+                        data3: Some(format!("{:?}", amount1)),
+                        data4: None,
+                        data5: None,
+                    });
                 }
             }
             _ => continue,
         };
     }
 
-    res
+    records
 }
 
 #[async_recursion]
@@ -213,7 +229,7 @@ async fn get_logs(
     to_block: u64,
     filter: LocalFilter,
     semaphore: Arc<Semaphore>,
-) -> String {
+) -> Vec<LogRecord> {
     if to_block - from_block > 1000 {
         let mid = (from_block + to_block) / 2;
 
@@ -225,8 +241,8 @@ async fn get_logs(
             semaphore.clone(),
         )
         .await;
-        a.push_str(
-            &get_logs(
+        a.extend(
+            get_logs(
                 web3.clone(),
                 mid + 1,
                 to_block,
@@ -247,7 +263,7 @@ async fn get_logs(
         drop(permit);
 
         match res {
-            Ok(x) => return convert_logs_to_string(x),
+            Ok(x) => return convert_logs_to_records(x),
             Err(x) => println!(
                 "Error doing from block {} to {}: {:?}",
                 from_block, to_block, x
@@ -268,8 +284,8 @@ async fn get_logs(
             semaphore.clone(),
         )
         .await;
-        a.push_str(
-            &get_logs(
+        a.extend(
+            get_logs(
                 web3.clone(),
                 mid + 1,
                 to_block,
@@ -282,16 +298,7 @@ async fn get_logs(
     }
 }
 
-pub async fn collect(opts: Opts) {
-    if std::path::Path::new(&opts.path.clone()).exists() {
-        fs::remove_file(opts.path.clone()).expect("Can not remove existing file");
-    }
-    let mut file = fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .open(opts.path.clone())
-        .expect("Can not open file");
-
+pub async fn collect(conn: &PgConnection, opts: Opts) {
     let http = Http::new(&opts.rpc).expect("Can not create http");
     let web3 = Web3::new(http);
 
@@ -321,7 +328,7 @@ pub async fn collect(opts: Opts) {
         }
         let semaphore = Arc::new(Semaphore::new(200));
 
-        let data = get_logs(
+        let logs = get_logs(
             web3.clone(),
             from_block,
             to_block,
@@ -330,9 +337,7 @@ pub async fn collect(opts: Opts) {
         )
         .await;
 
-        file.write_all(data.as_bytes())
-            .expect("Can not write to file");
-        file.flush().expect("Can not flush file");
+        insert_multiple_logs(conn, logs);
 
         println!("{} {}/{}", Utc::now().format("%H:%M:%S"), i + 1, iters);
     }
