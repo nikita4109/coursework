@@ -1,3 +1,4 @@
+use diesel::PgConnection;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::BufWriter;
@@ -12,13 +13,6 @@ use web3::Web3;
 
 use crate::PoolsCollectorArgs;
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct PoolInfo {
-    pub address: Address,
-    pub token0: Address,
-    pub token1: Address,
-}
-
 pub struct PoolCollector {
     rpc: String,
     output_filepath: String,
@@ -32,7 +26,7 @@ impl PoolCollector {
         }
     }
 
-    pub async fn collect(&self) {
+    pub async fn collect(&self, conn: PgConnection) {
         let http = Http::new(&self.rpc).expect("Can't connect to RPC");
         let web3 = Web3::new(http);
 
@@ -87,10 +81,11 @@ impl PoolCollector {
 
                 drop(permit);
 
-                PoolInfo {
-                    address: pool,
-                    token0: token0,
-                    token1: token1,
+                crate::db::models::PoolInfo {
+                    id: 0,
+                    address: format!("{:?}", pool),
+                    token0: format!("{:?}", token0),
+                    token1: format!("{:?}", token1),
                 }
             });
 

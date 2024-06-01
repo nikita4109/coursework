@@ -1,4 +1,4 @@
-use serde::Serializer;
+use super::schema::{blocks, cex_data, liquidity_ticks, logs, pools, swap_ticks, sync_ticks};
 use serde::{Deserialize, Serialize};
 use web3::types::{Address, U256};
 
@@ -9,29 +9,31 @@ pub struct Token {
     pub decimals: u64,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Queryable, Insertable, Serialize, Deserialize)]
+#[table_name = "sync_ticks"]
 pub struct SyncTick {
     pub token0_symbol: String,
     pub token1_symbol: String,
-    pub token0_address: Address,
-    pub token1_address: Address,
-    pub block_number: u64,
-    pub address: Address,
+    pub token0_address: String,
+    pub token1_address: String,
+    pub block_number: i64,
+    pub address: String,
     pub reserve0: f64,
     pub reserve1: f64,
     pub token0_usd_price: f64,
     pub token1_usd_price: f64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Queryable, Insertable, Serialize, Deserialize)]
+#[table_name = "swap_ticks"]
 pub struct SwapTick {
     pub token0_symbol: String,
     pub token1_symbol: String,
-    pub token0_address: Address,
-    pub token1_address: Address,
-    pub block_number: u64,
-    pub address: Address,
-    pub sender: Address,
+    pub token0_address: String,
+    pub token1_address: String,
+    pub block_number: i64,
+    pub address: String,
+    pub sender: String,
     pub amount0_in: f64,
     pub amount0_out: f64,
     pub amount1_in: f64,
@@ -40,15 +42,16 @@ pub struct SwapTick {
     pub token1_usd_price: f64,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Queryable, Insertable, Serialize, Deserialize)]
+#[table_name = "liquidity_ticks"]
 pub struct LiquidityTick {
     pub token0_symbol: String,
     pub token1_symbol: String,
-    pub token0_address: Address,
-    pub token1_address: Address,
-    pub block_number: u64,
-    pub address: Address,
-    pub sender: Address,
+    pub token0_address: String,
+    pub token1_address: String,
+    pub block_number: i64,
+    pub address: String,
+    pub sender: String,
     pub amount0: f64,
     pub amount1: f64,
     pub token0_usd_price: f64,
@@ -74,11 +77,6 @@ pub struct CEXRecord {
     pub platform_slug: String,
     platform_symbol: String,
     pub token_adress: String,
-}
-
-pub struct CEXData {
-    pub address: Address,
-    pub token_symbol: String,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -184,4 +182,46 @@ impl BurnEvent {
             amount1: U256::from_dec_str(&args[5]).expect("amount1 is invalid"),
         }
     }
+}
+
+#[derive(Queryable, Insertable, Serialize, Deserialize)]
+#[table_name = "blocks"]
+pub struct BlockRecord {
+    pub id: i32,
+    pub block_number: i64,
+    pub timestamp: i64,
+    pub gas_price: f64,
+    pub gas_used: i64,
+}
+
+#[derive(Queryable, Insertable, Serialize, Deserialize)]
+#[table_name = "logs"]
+pub struct LogRecord {
+    pub id: i32,
+    pub log_type: i32,
+    pub block_number: i64,
+    pub address: String,
+    pub data1: Option<String>,
+    pub data2: Option<String>,
+    pub data3: Option<String>,
+    pub data4: Option<String>,
+    pub data5: Option<String>,
+}
+
+#[derive(Queryable, Insertable, Serialize, Deserialize)]
+#[table_name = "cex_data"]
+pub struct CEXData {
+    pub id: i32,
+    pub platform_slug: String,
+    pub token_address: String,
+    pub symbol: String,
+}
+
+#[derive(Queryable, Insertable, Serialize, Deserialize, Debug)]
+#[table_name = "pools"]
+pub struct PoolInfo {
+    pub id: i32,
+    pub address: String,
+    pub token0: String,
+    pub token1: String,
 }

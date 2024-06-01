@@ -2,6 +2,7 @@ mod tokens;
 mod types;
 
 use csv::Reader;
+use diesel::PgConnection;
 use tokens::Tokens;
 
 use crate::{utils, RawCSVsProcessorArgs};
@@ -15,7 +16,7 @@ impl RawCSVProcessor {
         RawCSVProcessor { args: args }
     }
 
-    pub fn write_tokens_csv(&self) {
+    pub fn save_tokens_db(&self, conn: PgConnection) {
         let mut rdr = Reader::from_path(&self.args.swaps_path).expect("can't read swaps csv");
 
         let mut tokens = Tokens::new(self.args.candlestick_len);

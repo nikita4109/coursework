@@ -1,23 +1,15 @@
+use crate::db::db::{establish_connection, insert_multiple_data, load_data};
+use crate::db::models::BlockRecord;
 use crate::BlocksCollectorArgs;
-use csv::Writer;
+use diesel::PgConnection;
 use futures::future::join_all;
-use serde::Serialize;
-use std::fs::File;
 use std::sync::Arc;
 use tokio::sync::Semaphore;
 use web3::transports::Http;
-use web3::types::{Block, BlockId, BlockNumber, H256};
+use web3::types::{BlockId, BlockNumber};
 use web3::Web3;
 
-#[derive(Serialize)]
-struct BlockRecord {
-    block_number: u64,
-    timestamp: u64,
-    gas_price: f64,
-    gas_used: u64,
-}
-
-pub async fn collect(args: BlocksCollectorArgs) {
+pub async fn collect(conn: &PgConnection, args: BlocksCollectorArgs) {
     let http = Http::new(&args.rpc).expect("Cannot create http");
     let web3 = Web3::new(http);
     let semaphore = Arc::new(Semaphore::new(100));
@@ -37,9 +29,10 @@ pub async fn collect(args: BlocksCollectorArgs) {
                 .await
                 .map(|block_opt| {
                     block_opt.map(|block| BlockRecord {
-                        block_number: block.number.unwrap().as_u64(),
-                        timestamp: block.timestamp.as_u64(),
-                        gas_used: block.gas_used.as_u64(),
+                        id: 0, // Это значение будет игнорироваться при вставке в базу данных из-за SERIAL
+                        block_number: block.number.unwrap().as_u64() as i64,
+                        timestamp: block.timestamp.as_u64() as i64,
+                        gas_used: block.gas_used.as_u64() as i64,
                         gas_price: block
                             .base_fee_per_gas
                             .map_or(0.0, |gas| (gas.as_u128() as f64) / 10_f64.powi(18)),
@@ -66,12 +59,5 @@ pub async fn collect(args: BlocksCollectorArgs) {
         .filter_map(|x| x)
         .collect();
 
-    let file = File::create(args.output_filepath).expect("Unable to create file");
-    let mut wtr = Writer::from_writer(file);
-
-    for record in blocks {
-        wtr.serialize(record).expect("Unable to serialize record");
-    }
-
-    wtr.flush().expect("Unable to flush writer");
+    insert_multiple_data(conn, blocks);
 }
