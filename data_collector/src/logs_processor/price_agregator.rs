@@ -1,5 +1,5 @@
-use super::{normalize, types::SyncEvent};
-use crate::logs_processor::types::Token;
+use super::normalize;
+use crate::db::models::{SyncEvent, Token};
 use std::collections::{HashMap, HashSet};
 use web3::types::{Address, U256};
 
@@ -86,7 +86,8 @@ impl PriceAgregator {
             None => return,
         };
 
-        self.token_to_biggest_pool.insert(token.address, best_pool_idx);
+        self.token_to_biggest_pool
+            .insert(token.address, best_pool_idx);
 
         let best_pool = &self.pools[best_pool_idx];
         let usd_price = if best_pool.token0.address == token.address {

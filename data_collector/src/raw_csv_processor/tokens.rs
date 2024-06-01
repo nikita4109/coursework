@@ -1,6 +1,6 @@
 use super::types::Candlestick;
 use super::types::TokenTick;
-use crate::logs_processor::types::SwapTick;
+use crate::db::models::SwapTick;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::collections::VecDeque;
@@ -27,9 +27,9 @@ impl Tokens {
             swap.token0_usd_price * swap.amount0_in + swap.token1_usd_price * swap.amount1_in;
 
         self.update(
-            swap.block_number,
+            swap.block_number as u64,
             &swap.token0_symbol,
-            swap.token0_address,
+            swap.token0_address.parse().unwrap(),
             swap.token0_usd_price,
             swap.amount0_in,
             swap.amount0_out,
@@ -37,9 +37,9 @@ impl Tokens {
         );
 
         self.update(
-            swap.block_number,
+            swap.block_number as u64,
             &swap.token1_symbol,
-            swap.token1_address,
+            swap.token1_address.parse().unwrap(),
             swap.token1_usd_price,
             swap.amount1_in,
             swap.amount1_out,

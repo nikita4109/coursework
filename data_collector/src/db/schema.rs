@@ -41,3 +41,55 @@ table! {
       token1 -> Varchar,
   }
 }
+
+table! {
+  sync_ticks (id) {
+      id -> Int4,
+      token0_symbol -> Varchar,
+      token1_symbol -> Varchar,
+      token0_address -> Varchar,
+      token1_address -> Varchar,
+      block_number -> Int8,
+      address -> Varchar,
+      reserve0 -> Float8,
+      reserve1 -> Float8,
+      token0_usd_price -> Float8,
+      token1_usd_price -> Float8,
+  }
+}
+
+table! {
+  swap_ticks (id) {
+      id -> Int4,
+      token0_symbol -> Varchar,
+      token1_symbol -> Varchar,
+      token0_address -> Varchar,
+      token1_address -> Varchar,
+      block_number -> Int8,
+      address -> Varchar,
+      sender -> Varchar,
+      amount0_in -> Float8,
+      amount0_out -> Float8,
+      amount1_in -> Float8,
+      amount1_out -> Float8,
+      token0_usd_price -> Float8,
+      token1_usd_price -> Float8,
+  }
+}
+
+table! {
+  liquidity_ticks (id) {
+      id -> Int4,
+      token0_symbol -> Varchar,
+      token1_symbol -> Varchar,
+      token0_address -> Varchar,
+      token1_address -> Varchar,
+      block_number -> Int8,
+      address -> Varchar,
+      sender -> Varchar,
+      amount0 -> Float8,
+      amount1 -> Float8,
+      token0_usd_price -> Float8,
+      token1_usd_price -> Float8,
+  }
+}

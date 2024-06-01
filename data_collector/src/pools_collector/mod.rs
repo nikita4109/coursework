@@ -13,13 +13,6 @@ use web3::Web3;
 
 use crate::PoolsCollectorArgs;
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct PoolInfo {
-    pub address: Address,
-    pub token0: Address,
-    pub token1: Address,
-}
-
 pub struct PoolCollector {
     rpc: String,
     output_filepath: String,
@@ -88,10 +81,11 @@ impl PoolCollector {
 
                 drop(permit);
 
-                PoolInfo {
-                    address: pool,
-                    token0: token0,
-                    token1: token1,
+                crate::db::models::PoolInfo {
+                    id: 0,
+                    address: format!("{:?}", pool),
+                    token0: format!("{:?}", token0),
+                    token1: format!("{:?}", token1),
                 }
             });
 
