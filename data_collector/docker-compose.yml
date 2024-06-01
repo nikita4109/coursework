@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  coursework:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: coursework_container
+    ports:
+      - "8080:8080"
+    volumes:
+      - .:/usr/src/app
+    command: ["./coursework"]
