@@ -2,11 +2,12 @@ use async_recursion::async_recursion;
 use chrono::Utc;
 use ethabi::{Contract, Event, RawLog, Token};
 use lazy_static::lazy_static;
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::{fs, io::Write};
 use tokio::sync::Semaphore;
 use tokio::time::{sleep, Duration};
-use web3::types::{BlockNumber, Filter, FilterBuilder, Log, H256, U64};
+use web3::types::{Address, BlockNumber, Filter, FilterBuilder, Log, TransactionId, H256, U64};
 use web3::{transports::Http, Web3};
 
 lazy_static! {
@@ -24,11 +25,19 @@ lazy_static! {
             ethabi::Contract::load(abi_content.as_bytes()).expect("Error parsing abi/factory.abi");
         contract
     };
+    static ref ERC20_ABI: Contract = {
+        let abi_content =
+            std::fs::read_to_string("abi/erc20.abi").expect("Unable to read abi/erc20.abi");
+        let contract =
+            ethabi::Contract::load(abi_content.as_bytes()).expect("Error parsing abi/erc20.abi");
+        contract
+    };
     static ref PAIR_CREATED_EVENT: Event = FACTORY_ABI.event("PairCreated").unwrap().clone();
     static ref SYNC_EVENT: Event = POOL_ABI.event("Sync").unwrap().clone();
     static ref SWAP_EVENT: Event = POOL_ABI.event("Swap").unwrap().clone();
     static ref MINT_EVENT: Event = POOL_ABI.event("Mint").unwrap().clone();
     static ref BURN_EVENT: Event = POOL_ABI.event("Burn").unwrap().clone();
+    static ref TRANSFER_EVENT: Event = ERC20_ABI.event("Transfer").unwrap().clone();
 }
 
 pub struct Opts {
@@ -53,12 +62,52 @@ impl LocalFilter {
     }
 }
 
-fn convert_logs_to_string(logs: Vec<Log>) -> String {
-    let mut res = String::new();
+async fn convert_logs_to_string(
+    web3: Web3<Http>,
+    logs: Vec<Log>,
+    needed_pools: &HashSet<Address>,
+) -> (String, String, String, String, String, String) {
+    let mut pair_created_logs = String::new();
+    let mut sync_logs = String::new();
+    let mut swap_logs = String::new();
+    let mut mint_logs = String::new();
+    let mut burn_logs = String::new();
+    let mut transfers_logs = String::new();
 
     for log in logs {
+        if !needed_pools.contains(&log.address) {
+            continue;
+        }
+
         let topic = log.topics[0].clone();
         match topic {
+            _ if topic == TRANSFER_EVENT.signature() => {
+                if let Ok(x) = TRANSFER_EVENT.parse_log(RawLog {
+                    topics: log.topics.clone(),
+                    data: log.data.0.clone(),
+                }) {
+                    let from = match x.params[0].value.clone() {
+                        Token::Address(x) => x,
+                        _ => continue,
+                    };
+                    let to = match x.params[1].value.clone() {
+                        Token::Address(x) => x,
+                        _ => continue,
+                    };
+                    let amount = match x.params[2].value.clone() {
+                        Token::Uint(x) => x,
+                        _ => continue,
+                    };
+                    transfers_logs.push_str(&format!(
+                        "{:?},{:?},{:?},{:?},{:?}\n",
+                        log.block_number.unwrap(),
+                        log.address,
+                        from,
+                        to,
+                        amount,
+                    ));
+                }
+            }
             _ if topic == PAIR_CREATED_EVENT.signature() => {
                 if let Ok(x) = PAIR_CREATED_EVENT.parse_log(RawLog {
                     topics: log.topics.clone(),
@@ -76,8 +125,8 @@ fn convert_logs_to_string(logs: Vec<Log>) -> String {
                         Token::Address(x) => x,
                         _ => continue,
                     };
-                    res.push_str(&format!(
-                        "0,{:?},{:?},{:?},{:?},{:?}\n",
+                    pair_created_logs.push_str(&format!(
+                        "{:?},{:?},{:?},{:?},{:?}\n",
                         log.block_number.unwrap(),
                         log.address,
                         token0,
@@ -99,8 +148,8 @@ fn convert_logs_to_string(logs: Vec<Log>) -> String {
                         Token::Uint(x) => x,
                         _ => continue,
                     };
-                    res.push_str(&format!(
-                        "1,{:?},{:?},{:?},{:?}\n",
+                    sync_logs.push_str(&format!(
+                        "{:?},{:?},{:?},{:?}\n",
                         log.block_number.unwrap(),
                         log.address,
                         reserve0,
@@ -133,9 +182,23 @@ fn convert_logs_to_string(logs: Vec<Log>) -> String {
                         Token::Uint(x) => x,
                         _ => continue,
                     };
-                    res.push_str(&format!(
-                        "2,{:?},{:?},{:?},{:?},{:?},{:?},{:?}\n",
+
+                    let from = match log.transaction_hash {
+                        Some(hash) => match web3.eth().transaction(TransactionId::Hash(hash)).await
+                        {
+                            Ok(r) => match r {
+                                Some(r) => r.from,
+                                None => None,
+                            },
+                            Err(_) => None,
+                        },
+                        None => None,
+                    };
+
+                    swap_logs.push_str(&format!(
+                        "{:?},{:?},{:?},{:?},{:?},{:?},{:?},{:?}\n",
                         log.block_number.unwrap(),
+                        from,
                         log.address,
                         sender,
                         amount0_in,
@@ -162,8 +225,8 @@ fn convert_logs_to_string(logs: Vec<Log>) -> String {
                         Token::Uint(x) => x,
                         _ => continue,
                     };
-                    res.push_str(&format!(
-                        "3,{:?},{:?},{:?},{:?},{:?}\n",
+                    mint_logs.push_str(&format!(
+                        "{:?},{:?},{:?},{:?},{:?}\n",
                         log.block_number.unwrap(),
                         log.address,
                         sender,
@@ -189,8 +252,8 @@ fn convert_logs_to_string(logs: Vec<Log>) -> String {
                         Token::Uint(x) => x,
                         _ => continue,
                     };
-                    res.push_str(&format!(
-                        "4,{:?},{:?},{:?},{:?},{:?}\n",
+                    burn_logs.push_str(&format!(
+                        "{:?},{:?},{:?},{:?},{:?}\n",
                         log.block_number.unwrap(),
                         log.address,
                         sender,
@@ -203,7 +266,14 @@ fn convert_logs_to_string(logs: Vec<Log>) -> String {
         };
     }
 
-    res
+    (
+        pair_created_logs,
+        sync_logs,
+        swap_logs,
+        mint_logs,
+        burn_logs,
+        transfers_logs,
+    )
 }
 
 #[async_recursion]
@@ -213,7 +283,7 @@ async fn get_logs(
     to_block: u64,
     filter: LocalFilter,
     semaphore: Arc<Semaphore>,
-) -> String {
+) -> Vec<Log> {
     if to_block - from_block > 1000 {
         let mid = (from_block + to_block) / 2;
 
@@ -225,8 +295,8 @@ async fn get_logs(
             semaphore.clone(),
         )
         .await;
-        a.push_str(
-            &get_logs(
+        a.extend(
+            get_logs(
                 web3.clone(),
                 mid + 1,
                 to_block,
@@ -247,7 +317,7 @@ async fn get_logs(
         drop(permit);
 
         match res {
-            Ok(x) => return convert_logs_to_string(x),
+            Ok(x) => return x,
             Err(x) => println!(
                 "Error doing from block {} to {}: {:?}",
                 from_block, to_block, x
@@ -268,8 +338,8 @@ async fn get_logs(
             semaphore.clone(),
         )
         .await;
-        a.push_str(
-            &get_logs(
+        a.extend(
+            get_logs(
                 web3.clone(),
                 mid + 1,
                 to_block,
@@ -283,29 +353,59 @@ async fn get_logs(
 }
 
 pub async fn collect(opts: Opts) {
-    if std::path::Path::new(&opts.path.clone()).exists() {
-        fs::remove_file(opts.path.clone()).expect("Can not remove existing file");
-    }
-    let mut file = fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .open(opts.path.clone())
-        .expect("Can not open file");
+    let file = std::fs::File::open("input/selected_pools.csv").unwrap();
+    let mut rdr = csv::ReaderBuilder::new()
+        .has_headers(true)
+        .from_reader(file);
 
-    let http = Http::new(&opts.rpc).expect("Can not create http");
+    let mut addresses = HashSet::new();
+    for result in rdr.deserialize() {
+        let record: Address = result.unwrap();
+        addresses.insert(record);
+    }
+
+    let file = std::fs::File::open("input/selected_pools_2.csv").unwrap();
+    let mut rdr = csv::ReaderBuilder::new()
+        .has_headers(true)
+        .from_reader(file);
+    for result in rdr.deserialize() {
+        let record: Address = result.unwrap();
+        addresses.insert(record);
+    }
+
+    let file_paths = vec![
+        format!("{}/pair_created.csv", opts.path),
+        format!("{}/sync.csv", opts.path),
+        format!("{}/swap.csv", opts.path),
+        format!("{}/mint.csv", opts.path),
+        format!("{}/burn.csv", opts.path),
+    ];
+
+    let mut files = file_paths
+        .iter()
+        .map(|path| {
+            fs::OpenOptions::new()
+                .create(true)
+                .write(true)
+                .open(path)
+                .expect("Cannot open file")
+        })
+        .collect::<Vec<_>>();
+
+    let http = Http::new(&opts.rpc).expect("Cannot create http");
     let web3 = Web3::new(http);
 
     let local_filter = LocalFilter {
         topics: vec![
-            PAIR_CREATED_EVENT.signature(),
-            SYNC_EVENT.signature(),
+            // PAIR_CREATED_EVENT.signature(),
+            // SYNC_EVENT.signature(),
             SWAP_EVENT.signature(),
-            MINT_EVENT.signature(),
-            BURN_EVENT.signature(),
+            // MINT_EVENT.signature(),
+            // BURN_EVENT.signature(),
         ],
     };
 
-    let amount_block_one_iter = 50000;
+    let amount_block_one_iter = 500;
     let iters = (opts.to_block - opts.from_block - 1) / amount_block_one_iter + 1;
 
     println!(
@@ -313,6 +413,7 @@ pub async fn collect(opts: Opts) {
         Utc::now().format("%H:%M:%S"),
         iters
     );
+
     for i in 0..iters {
         let from_block = opts.from_block + i * amount_block_one_iter;
         let mut to_block = from_block + amount_block_one_iter - 1;
@@ -330,9 +431,95 @@ pub async fn collect(opts: Opts) {
         )
         .await;
 
-        file.write_all(data.as_bytes())
-            .expect("Can not write to file");
-        file.flush().expect("Can not flush file");
+        println!("[GET]");
+
+        let (pair_created, sync, swap, mint, burn, _) =
+            convert_logs_to_string(web3.clone(), data, &addresses).await;
+
+        files[0]
+            .write_all(pair_created.as_bytes())
+            .expect("Cannot write to pair_created file");
+        files[1]
+            .write_all(sync.as_bytes())
+            .expect("Cannot write to sync file");
+        files[2]
+            .write_all(swap.as_bytes())
+            .expect("Cannot write to swap file");
+        files[3]
+            .write_all(mint.as_bytes())
+            .expect("Cannot write to mint file");
+        files[4]
+            .write_all(burn.as_bytes())
+            .expect("Cannot write to burn file");
+
+        files
+            .iter_mut()
+            .for_each(|f| f.flush().expect("Cannot flush file"));
+
+        println!("{} {}/{}", Utc::now().format("%H:%M:%S"), i + 1, iters);
+    }
+}
+
+pub async fn collect_transfers(opts: Opts) {
+    let transfer_topic = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+        .parse()
+        .unwrap();
+
+    let file_paths = vec![format!("{}/transfers.csv", opts.path)];
+
+    let mut files = file_paths
+        .iter()
+        .map(|path| {
+            fs::OpenOptions::new()
+                .create(true)
+                .write(true)
+                .open(path)
+                .expect("Cannot open file")
+        })
+        .collect::<Vec<_>>();
+
+    let http = Http::new(&opts.rpc).expect("Cannot create http");
+    let web3 = Web3::new(http);
+
+    let local_filter = LocalFilter {
+        topics: vec![transfer_topic],
+    };
+
+    let amount_block_one_iter = 500;
+    let iters = (opts.to_block - opts.from_block - 1) / amount_block_one_iter + 1;
+
+    println!(
+        "{} Starting collection, total iters: {}",
+        Utc::now().format("%H:%M:%S"),
+        iters
+    );
+
+    for i in 0..iters {
+        let from_block = opts.from_block + i * amount_block_one_iter;
+        let mut to_block = from_block + amount_block_one_iter - 1;
+        if to_block > opts.to_block {
+            to_block = opts.to_block;
+        }
+        let semaphore = Arc::new(Semaphore::new(200));
+
+        let data = get_logs(
+            web3.clone(),
+            from_block,
+            to_block,
+            local_filter.clone(),
+            semaphore,
+        )
+        .await;
+
+        let (_, _, _, _, _, transfers) = convert_logs_to_string(web3.clone(), data, &HashSet::new()).await;
+
+        files[0]
+            .write_all(transfers.as_bytes())
+            .expect("Cannot write to pair_created file");
+
+        files
+            .iter_mut()
+            .for_each(|f| f.flush().expect("Cannot flush file"));
 
         println!("{} {}/{}", Utc::now().format("%H:%M:%S"), i + 1, iters);
     }

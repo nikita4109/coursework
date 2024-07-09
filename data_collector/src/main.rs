@@ -1,10 +1,12 @@
 use clap::{Parser, Subcommand};
+use token_meta_collector::collect_token_meta;
 
 mod blocks_collector;
 mod logs_collector;
 mod logs_processor;
 mod pools_collector;
 mod raw_csv_processor;
+mod token_meta_collector;
 mod utils;
 
 #[derive(Parser)]
@@ -16,11 +18,12 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     LogsCollector(LogsCollectorArgs),
+    TransfersCollector(LogsCollectorArgs),
+    TokenMetaCollector(TokenMetaCollectorArgs),
     LogsProcessor(LogsProcessorArgs),
     RawCSVProcessor(RawCSVsProcessorArgs),
     PoolsCollector(PoolsCollectorArgs),
     BlocksCollector(BlocksCollectorArgs),
-    BinanceCollector(BinanceCollectorArgs),
 }
 
 #[derive(Parser)]
@@ -34,6 +37,12 @@ struct LogsCollectorArgs {
     #[arg(short, long)]
     path: String,
 
+    #[arg(short, long)]
+    rpc: String,
+}
+
+#[derive(Parser)]
+struct TokenMetaCollectorArgs {
     #[arg(short, long)]
     rpc: String,
 }
@@ -115,6 +124,21 @@ async fn main() {
             };
 
             logs_collector::collect(opts).await;
+        }
+
+        Commands::TokenMetaCollector(args) => {
+            collect_token_meta(args).await;
+        }
+
+        Commands::TransfersCollector(args) => {
+            let opts = logs_collector::Opts {
+                from_block: args.from_block,
+                to_block: args.to_block,
+                path: args.path,
+                rpc: args.rpc,
+            };
+
+            logs_collector::collect_transfers(opts).await;
         }
 
         Commands::LogsProcessor(args) => {
